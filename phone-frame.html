@@ -1,0 +1,93 @@
+<div id="conv-phone" class="conv-phone conv-theme-auto" style="display: none;">
+    <!-- Status bar (phone top) -->
+    <div class="conv-status-bar">
+        <div class="conv-status-bar-left">
+            <span class="conv-status-bar-signal">●●●</span>
+        </div>
+        <div class="conv-status-bar-center">
+            <span class="conv-status-bar-time">12:34 PM</span>
+        </div>
+        <div class="conv-status-bar-right">
+            <span class="conv-status-bar-battery">🔋</span>
+        </div>
+    </div>
+
+    <!-- Header bar -->
+    <div class="conv-header" id="conv-header">
+        <button class="conv-header-back" id="conv-btn-back" title="Close Conversation Mode">
+            <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <div class="conv-header-avatar" id="conv-header-avatar">
+            <img src="" alt="" />
+        </div>
+        <div class="conv-header-info">
+            <span class="conv-header-name" id="conv-header-name"></span>
+            <span class="conv-header-status" id="conv-header-status">
+                <span class="conv-status-dot online"></span>
+                <span class="conv-status-text">Online</span>
+            </span>
+        </div>
+        <div class="conv-header-actions">
+            <button class="conv-header-btn" id="conv-btn-scene" title="Scene" style="display: none;">
+                <i class="fa-solid fa-clapperboard"></i>
+            </button>
+            <button class="conv-header-btn" id="conv-btn-minimize" title="Minimize">
+                <i class="fa-solid fa-minus"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Scene banner (hidden by default) -->
+    <div class="conv-scene-banner" id="conv-scene-banner" style="display: none;">
+        <span class="conv-scene-banner-icon"><i class="fa-solid fa-clapperboard"></i></span>
+        <span class="conv-scene-banner-title">Scene in progress</span>
+        <span class="conv-scene-banner-name" id="conv-scene-banner-name"></span>
+        <button class="conv-scene-banner-go" id="conv-scene-banner-go">Go to Scene →</button>
+    </div>
+
+    <!-- Messages area -->
+    <div class="conv-messages" id="conv-messages">
+        <!-- Messages rendered here dynamically -->
+    </div>
+
+    <!-- New messages indicator -->
+    <button class="conv-new-messages-btn" id="conv-new-messages-btn" style="display: none;">
+        <i class="fa-solid fa-chevron-down"></i> New messages
+    </button>
+
+    <!-- Typing indicator (hidden by default via CSS, shown via conv-typing-visible class) -->
+    <div class="conv-typing" id="conv-typing">
+        <div class="conv-typing-bubble">
+            <span class="conv-typing-dot"></span>
+            <span class="conv-typing-dot"></span>
+            <span class="conv-typing-dot"></span>
+        </div>
+        <span class="conv-typing-text" id="conv-typing-text"></span>
+    </div>
+
+    <!-- Input bar -->
+    <div class="conv-input-bar" id="conv-input-bar">
+        <button class="conv-input-btn conv-btn-emoji" id="conv-btn-emoji" title="Emoji">
+            <i class="fa-regular fa-face-smile"></i>
+        </button>
+        <button class="conv-input-btn conv-btn-attach" id="conv-btn-attach" title="Attach">
+            <i class="fa-solid fa-plus"></i>
+        </button>
+        <div class="conv-input-wrapper">
+            <textarea id="conv-input-textarea" class="conv-input-textarea"
+                rows="1" placeholder="Message..."></textarea>
+        </div>
+        <button class="conv-input-btn conv-btn-send" id="conv-btn-send" title="Send">
+            <i class="fa-solid fa-arrow-up"></i>
+        </button>
+    </div>
+
+    <!-- Resize handle (for floating mode) -->
+    <div class="conv-resize-handle" id="conv-resize-handle"></div>
+</div>
+
+<!-- Minimized icon -->
+<div id="conv-minimized-icon" class="conv-minimized-icon" style="display: none;" title="Open Conversation Mode">
+    <i class="fa-solid fa-comment-dots"></i>
+    <span class="conv-badge" id="conv-badge" style="display: none;">0</span>
+</div>

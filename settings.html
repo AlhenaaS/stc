@@ -1,0 +1,220 @@
+<div class="conversation-mode-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>Conversation Mode</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <!-- Enable/Disable for current chat -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>General</h4>
+
+                <div class="flex-container alignItemsCenter">
+                    <input id="conv_enabled" type="checkbox" />
+                    <label for="conv_enabled">Enable Conversation Mode (current chat)</label>
+                </div>
+
+                <label for="conv_display_mode">Display Mode</label>
+                <select id="conv_display_mode" class="text_pole">
+                    <option value="floating">Floating</option>
+                    <option value="docked-left">Docked Left</option>
+                    <option value="docked-right">Docked Right</option>
+                    <option value="fullscreen">Fullscreen</option>
+                </select>
+
+                <div class="flex-container alignItemsCenter">
+                    <input id="conv_enter_to_send" type="checkbox" />
+                    <label for="conv_enter_to_send">Enter to send</label>
+                </div>
+
+                <div class="flex-container alignItemsCenter">
+                    <input id="conv_show_char_name" type="checkbox" />
+                    <label for="conv_show_char_name">Show character name in bubbles</label>
+                </div>
+
+                <label for="conv_theme">Theme</label>
+                <select id="conv_theme" class="text_pole">
+                    <option value="auto">Auto (follow ST)</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                </select>
+            </div>
+
+            <hr class="sysHR" />
+
+            <!-- Appearance -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>Appearance</h4>
+
+                <div class="flex-container alignItemsCenter gap10">
+                    <label for="conv_user_bubble_color">User bubble</label>
+                    <input id="conv_user_bubble_color" type="color" value="#007AFF" />
+                </div>
+
+                <div class="flex-container alignItemsCenter gap10">
+                    <label for="conv_assistant_bubble_color">Assistant bubble</label>
+                    <input id="conv_assistant_bubble_color" type="color" value="#E9E9EB" />
+                </div>
+
+                <div class="flex-container alignItemsCenter gap10">
+                    <label for="conv_bg_color">Background</label>
+                    <input id="conv_bg_color" type="color" value="#FFFFFF" />
+                </div>
+
+                <label for="conv_bubble_shape">Bubble shape</label>
+                <select id="conv_bubble_shape" class="text_pole">
+                    <option value="rounded">Rounded</option>
+                    <option value="sharp">Sharp</option>
+                    <option value="minimal">Minimal</option>
+                </select>
+
+                <div class="flex-container alignItemsCenter gap10">
+                    <label for="conv_phone_width">Width</label>
+                    <input id="conv_phone_width" type="number" class="text_pole" min="300" max="800" value="375" />
+                    <label for="conv_phone_height">Height</label>
+                    <input id="conv_phone_height" type="number" class="text_pole" min="400" max="1200" value="670" />
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <!-- Stagger -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>Staggered Reveal</h4>
+
+                <div class="flex-container alignItemsCenter">
+                    <input id="conv_stagger_enabled" type="checkbox" />
+                    <label for="conv_stagger_enabled">Enable staggered reveal</label>
+                </div>
+
+                <label for="conv_stagger_delay">Delay: <span id="conv_stagger_delay_val">1500</span>ms</label>
+                <input id="conv_stagger_delay" type="range" min="500" max="5000" step="100" value="1500" />
+
+                <label for="conv_stagger_split">Split mode</label>
+                <select id="conv_stagger_split" class="text_pole">
+                    <option value="paragraphs">By paragraphs</option>
+                    <option value="lines">By lines</option>
+                </select>
+            </div>
+
+            <hr class="sysHR" />
+
+            <!-- Notifications -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>Notifications</h4>
+
+                <div class="flex-container alignItemsCenter">
+                    <input id="conv_sound_enabled" type="checkbox" />
+                    <label for="conv_sound_enabled">Enable notification sounds</label>
+                </div>
+
+                <label for="conv_sound_volume">Volume: <span id="conv_sound_volume_val">70</span>%</label>
+                <input id="conv_sound_volume" type="range" min="0" max="100" step="5" value="70" />
+
+                <div class="flex-container alignItemsCenter">
+                    <input id="conv_browser_notif" type="checkbox" />
+                    <label for="conv_browser_notif">Browser notifications (when tab unfocused)</label>
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <!-- Custom Prompt -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>Custom Conversation Prompt</h4>
+
+                <div class="flex-container alignItemsCenter">
+                    <input id="conv_custom_prompt_enabled" type="checkbox" />
+                    <label for="conv_custom_prompt_enabled">Use custom prompt in conversation mode</label>
+                </div>
+
+                <textarea id="conv_custom_prompt_text" class="text_pole textarea_compact" rows="4"
+                    placeholder="System prompt injected when conversation mode is active..."></textarea>
+
+                <div class="flex-container alignItemsCenter gap10">
+                    <label for="conv_prompt_position">Position</label>
+                    <select id="conv_prompt_position" class="text_pole">
+                        <option value="0">In Prompt</option>
+                        <option value="1">In Chat</option>
+                        <option value="2">Before Prompt</option>
+                    </select>
+
+                    <label for="conv_prompt_depth">Depth</label>
+                    <input id="conv_prompt_depth" type="number" class="text_pole" min="0" max="100" value="1" />
+
+                    <label for="conv_prompt_role">Role</label>
+                    <select id="conv_prompt_role" class="text_pole">
+                        <option value="0">System</option>
+                        <option value="1">User</option>
+                        <option value="2">Assistant</option>
+                    </select>
+                </div>
+
+                <div class="flex-container">
+                    <input id="conv_prompt_reset" class="menu_button" type="button" value="Reset to default" />
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <!-- Schedule & Status (Phase 2) -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>Schedule & Status</h4>
+
+                <p style="font-size:12px;color:var(--SmartThemeQuoteColor);margin:0 0 8px">
+                    Generate a weekly schedule to control when the character is online/offline.
+                    Used for status display and autonomous messaging.
+                </p>
+
+                <div class="flex-container gap10">
+                    <input id="conv_open_schedule_editor" class="menu_button" type="button" value="Open Schedule Editor" />
+                    <input id="conv_generate_schedule" class="menu_button" type="button" value="Generate Schedule (LLM)" />
+                </div>
+
+                <div class="flex-container gap10" style="margin-top:8px">
+                    <input id="conv_set_status" class="menu_button" type="button" value="Set Status Override" />
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <!-- Custom Game Time (Phase 2) -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>Custom Game Time</h4>
+
+                <p style="font-size:12px;color:var(--SmartThemeQuoteColor);margin:0 0 8px">
+                    Set a custom in-game time that can advance per message, in real-time, or manually.
+                    Displayed in the phone's status bar.
+                </p>
+
+                <div class="flex-container gap10">
+                    <input id="conv_open_time_editor" class="menu_button" type="button" value="Configure Game Time" />
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <!-- Autonomous Messaging (Phase 2) -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>Autonomous Messaging</h4>
+
+                <p style="font-size:12px;color:var(--SmartThemeQuoteColor);margin:0 0 8px">
+                    When enabled (via schedule), the character can send messages on their own
+                    after a period of inactivity from the user.
+                </p>
+
+                <div class="flex-container alignItemsCenter">
+                    <input id="conv_autonomous_enabled" type="checkbox" />
+                    <label for="conv_autonomous_enabled">Enable autonomous messaging (requires schedule)</label>
+                </div>
+
+                <div class="flex-container gap10" style="margin-top:8px">
+                    <input id="conv_force_autonomous" class="menu_button" type="button"
+                        value="Trigger Message Now (Test)" />
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+        </div>
+    </div>
+</div>

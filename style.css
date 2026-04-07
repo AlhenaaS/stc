@@ -1,0 +1,1217 @@
+/* ============================================
+   SillyTavern-Conversation — iPhone Messages Style
+   ============================================ */
+
+/* --- CSS Custom Properties --- */
+#conv-phone {
+    --conv-user-bubble-color: #007AFF;
+    --conv-assistant-bubble-color: #E9E9EB;
+    --conv-bg-color: #FFFFFF;
+    --conv-text-color: #000000;
+    --conv-text-secondary: #8E8E93;
+    --conv-header-bg: rgba(249, 249, 249, 0.94);
+    --conv-input-bg: #F2F2F7;
+    --conv-border-color: #C6C6C8;
+    --conv-bubble-radius: 18px;
+    --conv-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --conv-font-size: 15px;
+    --conv-status-bar-height: 28px;
+    --conv-header-height: 54px;
+}
+
+/* --- Dark theme --- */
+#conv-phone.conv-theme-dark {
+    --conv-bg-color: #000000;
+    --conv-text-color: #FFFFFF;
+    --conv-text-secondary: #8E8E93;
+    --conv-header-bg: rgba(28, 28, 30, 0.94);
+    --conv-input-bg: #1C1C1E;
+    --conv-border-color: #38383A;
+    --conv-assistant-bubble-color: #2C2C2E;
+}
+
+/* Dark theme extra overrides (code blocks, inline code, inputs) */
+#conv-phone.conv-theme-dark .conv-msg-content code {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#conv-phone.conv-theme-dark .conv-msg-content pre {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+#conv-phone.conv-theme-dark .conv-msg-assistant .conv-msg-content a {
+    color: #64D2FF;
+}
+
+#conv-phone.conv-theme-dark .conv-edit-textarea {
+    background: #1C1C1E;
+    color: #FFFFFF;
+    border-color: #48484A;
+}
+
+#conv-phone.conv-theme-dark .conv-msg-time {
+    color: var(--conv-text-secondary);
+}
+
+/* Auto theme: resolved to dark via JS when ST uses a dark background.
+   The JS adds conv-theme-dark class alongside conv-theme-auto, so
+   no pure-CSS selector needed here. */
+
+/* ============================================
+   Phone Frame
+   ============================================ */
+
+#conv-phone {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    z-index: 30000;
+    background-color: var(--conv-bg-color);
+    color: var(--conv-text-color);
+    font-family: var(--conv-font-family);
+    font-size: var(--conv-font-size);
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: box-shadow 0.2s ease;
+}
+
+/* Floating mode */
+#conv-phone.conv-mode-floating {
+    /* Size set via JS */
+}
+
+/* Docked Left */
+#conv-phone.conv-mode-docked-left {
+    left: 0 !important;
+    top: 0 !important;
+    width: 50vw !important;
+    height: var(--conv-vh, 100vh) !important;
+    border-radius: 0;
+    transform: none !important;
+}
+
+/* Docked Right */
+#conv-phone.conv-mode-docked-right {
+    right: 0 !important;
+    left: auto !important;
+    top: 0 !important;
+    width: 50vw !important;
+    height: var(--conv-vh, 100vh) !important;
+    border-radius: 0;
+    transform: none !important;
+}
+
+/* Fullscreen */
+#conv-phone.conv-mode-fullscreen {
+    left: 0 !important;
+    top: 0 !important;
+    width: 100vw !important;
+    height: var(--conv-vh, 100vh) !important;
+    border-radius: 0;
+    transform: none !important;
+}
+
+/* ============================================
+   Status Bar (phone top)
+   ============================================ */
+
+.conv-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--conv-status-bar-height);
+    padding: 0 16px;
+    background: var(--conv-header-bg);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--conv-text-color);
+    flex-shrink: 0;
+}
+
+.conv-status-bar-left,
+.conv-status-bar-center,
+.conv-status-bar-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+.conv-status-bar-center {
+    justify-content: center;
+}
+
+.conv-status-bar-right {
+    justify-content: flex-end;
+}
+
+.conv-status-bar-signal {
+    font-size: 8px;
+    letter-spacing: 2px;
+}
+
+/* ============================================
+   Header Bar
+   ============================================ */
+
+.conv-header {
+    display: flex;
+    align-items: center;
+    height: var(--conv-header-height);
+    padding: 0 8px;
+    background: var(--conv-header-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 0.5px solid var(--conv-border-color);
+    flex-shrink: 0;
+    cursor: grab;
+    user-select: none;
+}
+
+.conv-header:active {
+    cursor: grabbing;
+}
+
+.conv-header-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: none;
+    color: var(--conv-user-bubble-color);
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.15s;
+}
+
+.conv-header-back:hover {
+    background: rgba(0, 122, 255, 0.1);
+}
+
+.conv-header-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin: 0 8px;
+    flex-shrink: 0;
+}
+
+.conv-header-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.conv-header-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.conv-header-name {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conv-header-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--conv-text-secondary);
+}
+
+.conv-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.conv-status-dot.online { background-color: #34C759; }
+.conv-status-dot.idle { background-color: #FFCC00; }
+.conv-status-dot.dnd { background-color: #FF3B30; }
+.conv-status-dot.offline { background-color: #8E8E93; }
+
+.conv-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.conv-header-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: none;
+    color: var(--conv-user-bubble-color);
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.15s;
+}
+
+.conv-header-btn:hover {
+    background: rgba(0, 122, 255, 0.1);
+}
+
+/* ============================================
+   Scene Banner
+   ============================================ */
+
+.conv-scene-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.conv-scene-banner-icon {
+    font-size: 16px;
+}
+
+.conv-scene-banner-title {
+    font-weight: 600;
+}
+
+.conv-scene-banner-name {
+    flex: 1;
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conv-scene-banner-go {
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    background: none;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.conv-scene-banner-go:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* ============================================
+   Messages Area
+   ============================================ */
+
+.conv-messages {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 12px;
+    scroll-behavior: smooth;
+    /* Momentum scrolling on mobile */
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Custom scrollbar */
+.conv-messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.conv-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.conv-messages::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
+}
+
+/* New messages button */
+.conv-new-messages-btn {
+    position: absolute;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    background: var(--conv-user-bubble-color);
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+    transition: opacity 0.2s;
+}
+
+.conv-new-messages-btn:hover {
+    opacity: 0.9;
+}
+
+/* ============================================
+   Message Bubble
+   ============================================ */
+
+.conv-msg {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    margin-bottom: 2px;
+    max-width: 100%;
+}
+
+.conv-msg.conv-msg-group-start {
+    margin-top: 8px;
+}
+
+/* User message: align right */
+.conv-msg-user {
+    flex-direction: row-reverse;
+}
+
+/* System/narrator: centered */
+.conv-msg-system,
+.conv-msg-narrator {
+    justify-content: center;
+}
+
+.conv-msg-system .conv-msg-system {
+    text-align: center;
+    color: var(--conv-text-secondary);
+    font-size: 13px;
+    padding: 4px 12px;
+    font-style: italic;
+}
+
+/* Avatar */
+.conv-msg-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.conv-msg-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.conv-msg-avatar-spacer {
+    width: 28px;
+    flex-shrink: 0;
+}
+
+/* Bubble column */
+.conv-msg-bubble-col {
+    display: flex;
+    flex-direction: column;
+    max-width: 75%;
+    min-width: 0;
+}
+
+.conv-msg-user .conv-msg-bubble-col {
+    align-items: flex-end;
+}
+
+.conv-msg-assistant .conv-msg-bubble-col {
+    align-items: flex-start;
+}
+
+/* Character name */
+.conv-msg-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--conv-text-secondary);
+    margin-bottom: 2px;
+    padding: 0 4px;
+}
+
+/* Bubble */
+.conv-msg-bubble {
+    padding: 8px 14px;
+    border-radius: var(--conv-bubble-radius);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+    position: relative;
+}
+
+.conv-msg-assistant .conv-msg-bubble {
+    background-color: var(--conv-assistant-bubble-color);
+    color: var(--conv-text-color);
+    border-bottom-left-radius: 4px;
+}
+
+.conv-msg-user .conv-msg-bubble {
+    background-color: var(--conv-user-bubble-color);
+    color: #FFFFFF;
+    border-bottom-right-radius: 4px;
+}
+
+/* Group start: tail radius */
+.conv-msg-group-start.conv-msg-assistant .conv-msg-bubble {
+    border-bottom-left-radius: 4px;
+}
+
+.conv-msg-group-start.conv-msg-user .conv-msg-bubble {
+    border-bottom-right-radius: 4px;
+}
+
+/* Non-group-start: fully rounded bottom */
+.conv-msg:not(.conv-msg-group-start).conv-msg-assistant .conv-msg-bubble {
+    border-bottom-left-radius: var(--conv-bubble-radius);
+}
+
+.conv-msg:not(.conv-msg-group-start).conv-msg-user .conv-msg-bubble {
+    border-bottom-right-radius: var(--conv-bubble-radius);
+}
+
+/* Bubble shapes */
+.conv-bubble-sharp {
+    border-radius: 4px !important;
+}
+
+.conv-bubble-minimal {
+    border-radius: 8px !important;
+    background: transparent !important;
+    padding: 4px 0 !important;
+}
+
+.conv-msg-user .conv-bubble-minimal {
+    color: var(--conv-user-bubble-color) !important;
+    text-align: right;
+}
+
+/* Message content */
+.conv-msg-content {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.conv-msg-content p {
+    margin: 0;
+}
+
+.conv-msg-content p + p {
+    margin-top: 4px;
+}
+
+.conv-msg-content a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.conv-msg-user .conv-msg-content a {
+    color: #fff;
+}
+
+.conv-msg-content img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 4px 0;
+}
+
+.conv-msg-content code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.conv-msg-content pre {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 8px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 13px;
+    margin: 4px 0;
+}
+
+.conv-msg-content blockquote {
+    border-left: 3px solid var(--conv-text-secondary);
+    margin: 4px 0;
+    padding: 2px 8px;
+    color: var(--conv-text-secondary);
+}
+
+/* Timestamp */
+.conv-msg-time {
+    font-size: 11px;
+    color: var(--conv-text-secondary);
+    margin-top: 2px;
+    padding: 0 4px;
+}
+
+/* Swipe indicator */
+.conv-msg-swipe {
+    font-size: 11px;
+    color: var(--conv-text-secondary);
+    margin-top: 1px;
+    padding: 0 4px;
+}
+
+/* Streaming cursor */
+.conv-streaming-cursor {
+    animation: conv-blink 0.8s infinite;
+    opacity: 0.7;
+    font-size: 14px;
+}
+
+@keyframes conv-blink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 0; }
+}
+
+/* Edit textarea */
+.conv-edit-textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 6px 8px;
+    border: 2px solid var(--conv-user-bubble-color);
+    border-radius: 8px;
+    font-family: var(--conv-font-family);
+    font-size: var(--conv-font-size);
+    background: var(--conv-bg-color);
+    color: var(--conv-text-color);
+    resize: vertical;
+    outline: none;
+}
+
+/* ============================================
+   Day Separator
+   ============================================ */
+
+.conv-day-separator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0 8px;
+    padding: 0 8px;
+}
+
+.conv-day-separator-line {
+    flex: 1;
+    height: 0.5px;
+    background: var(--conv-border-color);
+}
+
+.conv-day-separator-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--conv-text-secondary);
+    white-space: nowrap;
+}
+
+/* ============================================
+   Typing Indicator
+   ============================================ */
+
+.conv-typing {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 8px;
+    flex-shrink: 0;
+}
+
+.conv-typing.conv-typing-visible {
+    display: flex;
+}
+
+.conv-typing-bubble {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 14px;
+    background: var(--conv-assistant-bubble-color);
+    border-radius: var(--conv-bubble-radius);
+    border-bottom-left-radius: 4px;
+}
+
+.conv-typing-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--conv-text-secondary);
+    animation: conv-typing-bounce 1.4s infinite ease-in-out;
+}
+
+.conv-typing-dot:nth-child(1) { animation-delay: 0s; }
+.conv-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.conv-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes conv-typing-bounce {
+    0%, 80%, 100% {
+        transform: scale(0.6);
+        opacity: 0.4;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.conv-typing-text {
+    font-size: 12px;
+    color: var(--conv-text-secondary);
+    font-style: italic;
+}
+
+/* ============================================
+   Input Bar
+   ============================================ */
+
+.conv-input-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 6px 8px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    background: var(--conv-header-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 0.5px solid var(--conv-border-color);
+    flex-shrink: 0;
+}
+
+.conv-input-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: none;
+    color: var(--conv-user-bubble-color);
+    font-size: 20px;
+    cursor: pointer;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background-color 0.15s;
+}
+
+.conv-input-btn:hover {
+    background: rgba(0, 122, 255, 0.1);
+}
+
+.conv-input-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.conv-input-textarea {
+    display: block;
+    width: 100%;
+    min-height: 36px;
+    padding: 8px 12px;
+    border: 1px solid var(--conv-border-color);
+    border-radius: 20px;
+    background: var(--conv-input-bg);
+    color: var(--conv-text-color);
+    font-family: var(--conv-font-family);
+    font-size: var(--conv-font-size);
+    line-height: 1.3;
+    resize: none;
+    outline: none;
+    overflow-y: auto;
+    max-height: 200px;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.conv-input-textarea:focus {
+    border-color: var(--conv-user-bubble-color);
+}
+
+.conv-input-textarea::placeholder {
+    color: var(--conv-text-secondary);
+}
+
+.conv-btn-send {
+    background: var(--conv-user-bubble-color) !important;
+    color: #fff !important;
+    font-size: 16px !important;
+    width: 32px !important;
+    height: 32px !important;
+}
+
+.conv-btn-send:hover {
+    opacity: 0.85;
+    background: var(--conv-user-bubble-color) !important;
+}
+
+/* ============================================
+   Resize Handle
+   ============================================ */
+
+.conv-resize-handle {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+    z-index: 10;
+}
+
+.conv-mode-floating .conv-resize-handle {
+    display: block;
+}
+
+.conv-mode-docked-left .conv-resize-handle,
+.conv-mode-docked-right .conv-resize-handle,
+.conv-mode-fullscreen .conv-resize-handle {
+    display: none;
+}
+
+/* ============================================
+   Minimized Icon
+   ============================================ */
+
+.conv-minimized-icon {
+    position: fixed;
+    bottom: max(20px, env(safe-area-inset-bottom, 0px));
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #007AFF;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    z-index: 31000;
+    transition: transform 0.15s, box-shadow 0.15s;
+    /* Allow touch events to work smoothly for drag */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.conv-minimized-icon:hover {
+    transform: scale(1.08);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.conv-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: #FF3B30;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ============================================
+   Action Menu (context menu for messages)
+   ============================================ */
+
+.conv-action-menu {
+    position: fixed;
+    display: flex;
+    gap: 2px;
+    padding: 6px;
+    background: var(--conv-header-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 10100;
+    white-space: nowrap;
+    /* Position is set via JS using fixed coordinates */
+}
+
+.conv-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border: none;
+    background: none;
+    color: var(--conv-text-color);
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.15s;
+    white-space: nowrap;
+}
+
+.conv-action-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.conv-action-btn i {
+    font-size: 14px;
+    color: var(--conv-user-bubble-color);
+}
+
+/* ============================================
+   Settings Panel
+   ============================================ */
+
+.conversation-mode-settings {
+    margin-top: 10px;
+}
+
+.conversation-settings-block {
+    padding: 8px 0;
+    gap: 8px;
+}
+
+.conversation-settings-block h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--SmartThemeBodyColor, #333);
+}
+
+.conversation-settings-block label {
+    font-size: 13px;
+}
+
+.conversation-settings-block input[type="number"] {
+    width: 70px;
+}
+
+.conversation-settings-block input[type="color"] {
+    width: 40px;
+    height: 30px;
+    padding: 2px;
+    cursor: pointer;
+}
+
+.conversation-settings-block textarea {
+    width: 100%;
+    min-height: 80px;
+}
+
+/* ============================================
+   Responsive / Mobile
+   ============================================ */
+
+@media (max-width: 768px) {
+    #conv-phone.conv-mode-floating {
+        width: 100vw !important;
+        height: var(--conv-vh, 100vh) !important;
+        left: 0 !important;
+        top: 0 !important;
+        border-radius: 0;
+        transform: none !important;
+    }
+
+    .conv-resize-handle {
+        display: none !important;
+    }
+
+    .conv-header {
+        cursor: default;
+    }
+
+    /* Slightly larger padding for mobile readability */
+    .conv-messages {
+        padding: 8px 6px;
+    }
+
+    .conv-msg {
+        max-width: 88%;
+    }
+
+    .conv-msg-bubble {
+        padding: 9px 14px;
+        font-size: 16px;
+    }
+
+    /* Larger touch targets for header buttons */
+    .conv-header-btn {
+        min-width: 40px;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Action menu: bigger buttons for touch */
+    .conv-action-btn {
+        padding: 10px 14px;
+        font-size: 14px;
+        min-height: 40px;
+    }
+
+    /* Input bar: slightly more padding */
+    .conv-input-bar {
+        padding: 8px 10px;
+        gap: 6px;
+    }
+
+    .conv-input-bar textarea {
+        font-size: 16px; /* Prevents zoom on focus in iOS */
+        min-height: 38px;
+    }
+
+    /* Minimized icon: ensure visible and tappable on mobile */
+    .conv-minimized-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 26px;
+        bottom: max(24px, env(safe-area-inset-bottom, 0px));
+        right: 16px;
+    }
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+/* Bubble appear animation */
+.conv-msg {
+    animation: conv-bubble-appear 0.25s ease-out;
+}
+
+@keyframes conv-bubble-appear {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Day separator appear */
+.conv-day-separator {
+    animation: conv-fade-in 0.3s ease-out;
+}
+
+@keyframes conv-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ============================================
+   Emoji Picker (Phase 2)
+   ============================================ */
+
+.conv-emoji-picker {
+    background: var(--conv-header-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    z-index: 10050;
+    overflow: hidden;
+    max-height: 320px;
+    display: flex;
+    flex-direction: column;
+}
+
+.conv-emoji-search {
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 1px solid var(--conv-border-color);
+    background: transparent;
+    color: var(--conv-text-color);
+    font-family: var(--conv-font-family);
+    font-size: 14px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.conv-emoji-search::placeholder {
+    color: var(--conv-text-secondary);
+}
+
+.conv-emoji-tabs {
+    display: flex;
+    padding: 4px 4px 0;
+    gap: 2px;
+    border-bottom: 1px solid var(--conv-border-color);
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+
+.conv-emoji-tab {
+    padding: 4px 8px;
+    border: none;
+    background: none;
+    font-size: 14px;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    color: var(--conv-text-secondary);
+    transition: background-color 0.15s;
+}
+
+.conv-emoji-tab:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.conv-emoji-tab.active {
+    background: rgba(0, 122, 255, 0.1);
+    color: var(--conv-user-bubble-color);
+}
+
+.conv-emoji-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.conv-emoji-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+.conv-emoji-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: none;
+    font-size: 22px;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.1s, transform 0.1s;
+}
+
+.conv-emoji-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+    transform: scale(1.15);
+}
+
+/* ============================================
+   @Mention Autocomplete (Phase 2)
+   ============================================ */
+
+.conv-mention-popup {
+    background: var(--conv-header-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    z-index: 10050;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.conv-mention-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 8px;
+    font-size: 14px;
+    color: var(--conv-text-color);
+    transition: background-color 0.1s;
+}
+
+.conv-mention-item:hover,
+.conv-mention-item.active {
+    background: rgba(0, 122, 255, 0.12);
+}
+
+.conv-mention-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.conv-mention-badge {
+    font-size: 11px;
+    color: var(--conv-text-secondary);
+    margin-left: auto;
+    font-style: italic;
+}
+
+/* ============================================
+   Schedule Editor (Phase 2)
+   ============================================ */
+
+.conv-schedule-editor {
+    min-width: 400px;
+}
+
+.conv-schedule-editor h3 {
+    margin: 0 0 12px;
+}
+
+.conv-schedule-editor h4 {
+    margin: 8px 0 6px;
+    font-size: 14px;
+}
+
+.conv-sched-timeline {
+    position: relative;
+}
+
+.conv-sched-block {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    border-radius: 3px;
+    opacity: 0.85;
+    transition: opacity 0.1s;
+}
+
+.conv-sched-block:hover {
+    opacity: 1;
+}
+
+.conv-sched-day-label {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================
+   Time Editor (Phase 2)
+   ============================================ */
+
+.conv-time-editor h3 {
+    margin: 0 0 12px;
+}
+
+/* ============================================
+   Status Picker (Phase 2)
+   ============================================ */
+
+.conv-status-picker h3 {
+    margin: 0 0 12px;
+}

@@ -1,0 +1,12 @@
+{
+    "display_name": "Conversation Mode",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "SillyTavern-Conversation",
+    "version": "1.0.0",
+    "homePage": "https://github.com/SillyTavern-Conversation",
+    "description": "iPhone Messages-style chat with autonomous messaging, scenes, and cross-memory"
+}

@@ -1,0 +1,55 @@
+/**
+ * Custom Prompt: injects a conversation-style system prompt when conversation mode is active.
+ */
+
+import { getSettings, isConversationEnabled, getChatMeta, MODULE_NAME } from '../core/state.js';
+
+const PROMPT_NAME = 'conversation_mode_prompt';
+
+/**
+ * Inject the custom conversation prompt if enabled.
+ * Should be called before each generation.
+ */
+export function injectCustomPrompt() {
+    if (!isConversationEnabled()) {
+        removeCustomPrompt();
+        return;
+    }
+
+    const settings = getSettings();
+    const chatMeta = getChatMeta();
+
+    // Per-chat override takes priority
+    const promptConfig = chatMeta.conversationCustomPrompt || settings.customPrompt;
+
+    if (!promptConfig?.enabled || !promptConfig.text) {
+        removeCustomPrompt();
+        return;
+    }
+
+    const context = SillyTavern.getContext();
+    context.setExtensionPrompt(
+        PROMPT_NAME,
+        promptConfig.text,
+        promptConfig.position ?? 1,
+        promptConfig.depth ?? 1,
+        true,  // scan
+        promptConfig.role ?? 0,
+    );
+}
+
+/**
+ * Remove the injected prompt.
+ */
+export function removeCustomPrompt() {
+    const context = SillyTavern.getContext();
+    context.setExtensionPrompt(PROMPT_NAME, '', 0, 0, false, 0);
+}
+
+/**
+ * Get the default prompt text.
+ * @returns {string}
+ */
+export function getDefaultPromptText() {
+    return `You are now in a text messaging conversation. Write short, casual messages as if texting on a phone. Use natural texting style: short sentences, occasional emoji, casual grammar. Do NOT write long paragraphs or prose-style responses. Each new line will be shown as a separate message bubble.`;
+}

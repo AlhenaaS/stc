@@ -1,0 +1,44 @@
+<div class="conv-scene-frame" id="conv-scene-frame" style="display: none;">
+    <!-- Scene header -->
+    <div class="conv-scene-header">
+        <button class="conv-header-back" id="conv-scene-back" title="Back to Conversation">
+            <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <span class="conv-scene-header-icon"><i class="fa-solid fa-clapperboard"></i></span>
+        <span class="conv-scene-header-title" id="conv-scene-title">Scene</span>
+        <div class="conv-header-actions">
+            <button class="conv-header-btn" id="conv-scene-settings" title="Scene Settings">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Scene messages (prose style, not bubbles) -->
+    <div class="conv-scene-messages" id="conv-scene-messages">
+        <!-- Rendered by conversation-view in scene mode -->
+    </div>
+
+    <!-- Scene controls bar -->
+    <div class="conv-scene-controls">
+        <button class="conv-scene-ctrl-btn conv-scene-conclude" id="conv-scene-conclude" title="Conclude scene">
+            <i class="fa-solid fa-check"></i> End Scene
+        </button>
+        <button class="conv-scene-ctrl-btn conv-scene-abandon" id="conv-scene-abandon" title="Abandon scene">
+            <i class="fa-solid fa-xmark"></i> Abandon
+        </button>
+        <button class="conv-scene-ctrl-btn conv-scene-back-btn" id="conv-scene-back-chat" title="Back to chat">
+            <i class="fa-solid fa-arrow-left"></i> Back to Chat
+        </button>
+    </div>
+
+    <!-- Scene input -->
+    <div class="conv-input-bar">
+        <div class="conv-input-wrapper">
+            <textarea id="conv-scene-textarea" class="conv-input-textarea"
+                rows="1" placeholder="Your response..."></textarea>
+        </div>
+        <button class="conv-input-btn conv-btn-send" id="conv-scene-send" title="Send">
+            <i class="fa-solid fa-arrow-up"></i>
+        </button>
+    </div>
+</div>
