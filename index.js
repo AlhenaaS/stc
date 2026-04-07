@@ -22,13 +22,16 @@ import { initMentionAutocomplete } from './src/ui/mention-autocomplete.js';
 import { openEmojiPicker } from './src/ui/emoji-picker.js';
 
 const extensionName = 'SillyTavern-Conversation';
-const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
+
+// Derive folder path from module URL — works regardless of actual folder name on disk.
+// import.meta.url gives us e.g. "https://host/scripts/extensions/third-party/FolderName/index.js"
+const extensionFolderPath = new URL('.', import.meta.url).pathname.replace(/\/$/, '');
 
 /**
  * Main initialization — runs when the extension is loaded.
  */
 async function init() {
-    console.log('[Conversation] Initializing...');
+    console.log('[Conversation] Initializing...', 'Path:', extensionFolderPath);
 
     // Ensure settings are initialized
     getSettings();
