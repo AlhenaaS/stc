@@ -12,6 +12,7 @@ import { getSettings, isConversationEnabled, getSchedule, getChatMeta } from '..
 import { getCurrentTime, formatMessageTime } from '../utils/time-helpers.js';
 import { getCurrentStatus, getStatusInfo } from './status.js';
 import { getCurrentStatusFromSchedule } from './schedule.js';
+import { resolvePrompt } from '../utils/prompt-helpers.js';
 
 const CONTEXT_PROMPT_KEY = 'conversation_context_block';
 
@@ -78,30 +79,29 @@ export function injectContextBlock() {
     }
 
     const context = SillyTavern.getContext();
+    const settings = getSettings();
     const schedule = getSchedule();
-    const chatMeta = getChatMeta();
     const now = getCurrentTime();
 
-    // Build the context block
-    const lines = [];
+    const promptTemplate = settings.prompts?.contextBlock;
+    if (!promptTemplate) return;
 
-    // Current date/time
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayName = dayNames[now.getDay()];
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const dateStr = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
-    lines.push(`Current time and date: ${hours}:${minutes}, ${dateStr} (${dayName}).`);
+    // Build extra macros for context block
+    const extra = {};
 
-    // Character status from schedule
     if (schedule?.weekly) {
         const charName = context.name2 || 'Character';
         const status = getCurrentStatusFromSchedule(schedule);
         const statusInfo = getStatusInfo(status);
+        extra.currentStatus = statusInfo.label;
 
         // Find current activity from schedule
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayName = dayNames[now.getDay()];
         const dayKey = dayName.toLowerCase();
         const daySchedule = schedule.weekly[dayKey] || [];
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
         const currentTimeStr = `${hours}:${minutes}`;
         let currentActivity = '';
         for (const block of daySchedule) {
@@ -110,25 +110,19 @@ export function injectContextBlock() {
                 break;
             }
         }
-
-        lines.push(`${charName}'s current status: ${statusInfo.label}${currentActivity ? ` (${currentActivity})` : ''}.`);
-
-        // User status
-        const userName = context.name1 || 'User';
-        lines.push(`${userName}'s status: online (in the chat).`);
+        extra.currentActivity = currentActivity ? ` (${currentActivity})` : '';
 
         // Today's schedule summary
         if (daySchedule.length > 0) {
             const schedSummary = daySchedule
                 .map(b => `${b.from}-${b.to}: ${b.activity || b.status}`)
                 .join(', ');
-            lines.push(`${charName}'s schedule today (${dayName}): ${schedSummary}.`);
+            extra.scheduleToday = `${charName}'s schedule today (${dayName}): ${schedSummary}.`;
         }
     }
 
-    if (lines.length === 0) return;
-
-    const contextBlock = `<context>\n${lines.join('\n')}\n</context>`;
+    const contextBlock = resolvePrompt(promptTemplate, extra);
+    if (!contextBlock.trim()) return;
 
     // Inject as extension prompt at depth 0 (right before the last message)
     context.setExtensionPrompt(

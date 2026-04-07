@@ -3,7 +3,8 @@
  * Phase 3 feature — skeleton implementation.
  */
 
-import { getSceneInfo, getState, setState } from '../core/state.js';
+import { getSceneInfo, getSettings, getState, setState } from '../core/state.js';
+import { resolvePrompt } from '../utils/prompt-helpers.js';
 
 /**
  * Create a new scene from conversation.
@@ -17,25 +18,17 @@ export async function createScene(description) {
         return null;
     }
 
-    const char = context.characters[context.characterId];
+    const settings = getSettings();
+    const promptTemplate = settings.prompts?.sceneCreation;
+    if (!promptTemplate) {
+        toastr.error('Scene creation prompt is empty');
+        return null;
+    }
 
     // Generate scene plan via LLM
-    const prompt = `Based on this scene idea, create a detailed scene plan for a roleplay scene.
-
-Scene idea: ${description}
-Character: ${char.name}
-Character description: ${char.description || ''}
-
-Return ONLY valid JSON:
-{
-    "title": "Short scene title",
-    "location": "Where the scene takes place",
-    "mood": "Mood/atmosphere",
-    "characters": ["${char.name}", "{{user}}"],
-    "description": "Brief scene description",
-    "openingNarration": "*Opening narration text in roleplay style*",
-    "systemPromptAddition": "Additional context for the AI during this scene"
-}`;
+    const prompt = resolvePrompt(promptTemplate, {
+        sceneDescription: description,
+    });
 
     try {
         toastr.info('Planning scene...');

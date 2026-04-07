@@ -41,14 +41,120 @@ export const DEFAULT_SETTINGS = {
     // Autonomous messaging
     autonomousEnabled: false,
 
-    // Custom prompt
+    // Custom prompt (legacy — still used for injection settings)
     customPrompt: {
         enabled: true,
-        text: `You are now in a text messaging conversation. Write short, casual messages as if texting on a phone. Use natural texting style: short sentences, occasional emoji, casual grammar. Do NOT write long paragraphs or prose-style responses. Each new line will be shown as a separate message bubble.`,
+        text: '', // will be populated from prompts.conversationSystem on first run
         position: 1,    // 0=IN_PROMPT, 1=IN_CHAT, 2=BEFORE_PROMPT
         depth: 1,
         role: 0,        // 0=system, 1=user, 2=assistant
     },
+
+    // ================================================================
+    // Prompts — all LLM-facing templates, fully customizable.
+    // Macros available in all prompts:
+    //   {{charName}}         — character name
+    //   {{charDescription}}  — character description
+    //   {{charPersonality}}  — character personality field
+    //   {{scenario}}         — character scenario
+    //   {{user}}             — user's display name
+    //   {{char}}             — alias for {{charName}}
+    //   {{timeOfDay}}        — "morning" / "afternoon" / "evening"
+    //   {{currentTime}}      — "HH:MM"
+    //   {{currentDate}}      — "DD.MM.YYYY"
+    //   {{dayName}}          — "Monday" etc.
+    //   {{scheduleToday}}    — today's schedule summary
+    //   {{currentActivity}}  — current activity from schedule
+    //   {{currentStatus}}    — current status label (Online/Idle/etc.)
+    //   {{sceneDescription}} — (scenes) user's scene idea
+    // ================================================================
+    prompts: {
+        // System prompt injected into every generation in conversation mode
+        conversationSystem: `You are now in a text messaging conversation. Write short, casual messages as if texting on a phone. Use natural texting style: short sentences, occasional emoji, casual grammar. Do NOT write long paragraphs or prose-style responses. Each new line will be shown as a separate message bubble.`,
+
+        // Schedule generation prompt (sent to generateRaw)
+        scheduleGeneration: `Based on this character's description, generate a realistic weekly phone/messaging schedule in JSON format.
+
+Character: {{charName}}
+Description: {{charDescription}}
+{{scenario}}
+
+The schedule should reflect the character's personality, occupation, lifestyle, and habits.
+Each day should have time blocks covering 00:00-23:59 with these statuses:
+- "online" — actively checking phone, quick responses
+- "idle" — might check phone occasionally, slower responses  
+- "dnd" — busy/focused, won't respond for a while
+- "offline" — sleeping or completely unavailable
+
+Each block needs: "from" (HH:MM), "to" (HH:MM), "status", and "activity" (brief description).
+
+Return ONLY valid JSON (no markdown, no explanation) in this exact format:
+{
+    "weekly": {
+        "monday": [
+            { "from": "00:00", "to": "07:00", "status": "offline", "activity": "Sleeping" },
+            { "from": "07:00", "to": "08:30", "status": "online", "activity": "Morning routine" },
+            { "from": "08:30", "to": "12:00", "status": "dnd", "activity": "At work/school" },
+            { "from": "12:00", "to": "13:00", "status": "online", "activity": "Lunch break" },
+            { "from": "13:00", "to": "17:00", "status": "dnd", "activity": "At work/school" },
+            { "from": "17:00", "to": "22:00", "status": "online", "activity": "Free time" },
+            { "from": "22:00", "to": "23:59", "status": "idle", "activity": "Winding down" }
+        ],
+        "tuesday": [...same format...],
+        "wednesday": [...],
+        "thursday": [...],
+        "friday": [...],
+        "saturday": [...],
+        "sunday": [...]
+    },
+    "autonomousMessaging": {
+        "enabled": true,
+        "initiateAfterInactivity": 600,
+        "maxInitiationsPerDay": 5,
+        "responseDelay": { "min": 30, "max": 180 }
+    }
+}`,
+
+        // Autonomous message prompt (sent via generateQuietPrompt)
+        autonomousMessage: `[System: {{charName}} hasn't heard from {{user}} in a while. It's {{timeOfDay}}. {{charName}} decides to send a text message to {{user}}. Write ONLY the text message that {{charName}} would send — a short, natural message to start or continue conversation, based on their personality. Keep it casual and brief, like a real text message. Do NOT include any narration, actions, or stage directions.]`,
+
+        // Context injection block template (injected before each generation)
+        contextBlock: `<context>
+Current time and date: {{currentTime}}, {{currentDate}} ({{dayName}}).
+{{charName}}'s current status: {{currentStatus}}{{currentActivity}}.
+{{user}}'s status: online (in the chat).
+{{scheduleToday}}
+</context>`,
+
+        // Scene creation prompt (sent to generateRaw)
+        sceneCreation: `Based on this scene idea, create a detailed scene plan for a roleplay scene.
+
+Scene idea: {{sceneDescription}}
+Character: {{charName}}
+Character description: {{charDescription}}
+
+Return ONLY valid JSON:
+{
+    "title": "Short scene title",
+    "location": "Where the scene takes place",
+    "mood": "Mood/atmosphere",
+    "characters": ["{{charName}}", "{{user}}"],
+    "description": "Brief scene description",
+    "openingNarration": "*Opening narration text in roleplay style*",
+    "systemPromptAddition": "Additional context for the AI during this scene"
+}`,
+
+        // Cross-memory: conversation context injected into scenes
+        crossMemoryConversation: `[Context from text conversation between {{user}} and {{char}}:\n{{messages}}\n...]`,
+
+        // Cross-memory: scene memories injected into conversation
+        crossMemoryScene: `[Shared Memory - Scene: "{{sceneTitle}}"\n{{summary}}]`,
+    },
+
+    // Prompt presets (saved sets of all prompts)
+    promptPresets: {},
+    // Currently active preset name (null = custom / unsaved)
+    activePreset: null,
 
     // Cross-memory
     crossMemory: {

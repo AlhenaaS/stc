@@ -1215,3 +1215,35 @@
 .conv-status-picker h3 {
     margin: 0 0 12px;
 }
+
+/* ============================================
+   Prompt Template Editors
+   ============================================ */
+
+.conv-prompt-editors {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.conv-prompt-editor-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.conv-prompt-editor-item label b {
+    font-size: 13px;
+}
+
+.conv-prompt-editor-item textarea {
+    font-size: 12px;
+    font-family: monospace;
+    line-height: 1.4;
+}
+
+.conv-prompt-reset-btn {
+    padding: 2px 8px !important;
+    font-size: 11px !important;
+    height: auto !important;
+}

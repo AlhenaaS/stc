@@ -9,8 +9,9 @@
  * 5. Plays notification + browser notification
  */
 
-import { getState, setState, getSchedule, isConversationEnabled } from '../core/state.js';
+import { getState, setState, getSchedule, getSettings, isConversationEnabled } from '../core/state.js';
 import { getCurrentTime } from '../utils/time-helpers.js';
+import { resolvePrompt } from '../utils/prompt-helpers.js';
 import { playNotificationSound, showBrowserNotification } from './notifications.js';
 import { canReceiveMessages } from './status.js';
 import { delay } from '../utils/dom-helpers.js';
@@ -136,10 +137,14 @@ async function triggerAutonomousMessage(schedule) {
     }
 
     try {
-        const now = getCurrentTime();
-        const timeOfDay = now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening';
+        const settings = getSettings();
+        const promptTemplate = settings.prompts?.autonomousMessage;
+        if (!promptTemplate) {
+            hideTypingIndicator();
+            return;
+        }
 
-        const prompt = `[System: ${char.name} hasn't heard from {{user}} in a while. It's ${timeOfDay}. ${char.name} decides to send a text message to {{user}}. Write ONLY the text message that ${char.name} would send — a short, natural message to start or continue conversation, based on their personality. Keep it casual and brief, like a real text message. Do NOT include any narration, actions, or stage directions.]`;
+        const prompt = resolvePrompt(promptTemplate);
 
         // generateQuietPrompt generates text but does NOT add it to chat.
         // We need to manually create a message and insert it.

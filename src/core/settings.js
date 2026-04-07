@@ -2,10 +2,9 @@
  * Settings module: binds settings UI controls to extension settings.
  */
 
-import { getSettings, saveSettings, isConversationEnabled, setConversationEnabled } from './state.js';
+import { getSettings, saveSettings, isConversationEnabled, setConversationEnabled, DEFAULT_SETTINGS } from './state.js';
 import { applyDisplayMode, showPhone, hidePhone } from '../ui/phone-window.js';
 import { renderAllMessages } from '../ui/conversation-view.js';
-import { getDefaultPromptText } from '../features/custom-prompt.js';
 import { requestNotificationPermission } from '../features/notifications.js';
 import { openScheduleEditor } from '../features/schedule-editor.js';
 import { generateSchedule } from '../features/schedule.js';
@@ -134,19 +133,15 @@ export function initSettingsPanel() {
         saveSettings();
     });
 
-    // --- Custom Prompt ---
+    // --- Custom Prompt Injection ---
     bindCheckbox('conv_custom_prompt_enabled', settings.customPrompt.enabled, (val) => {
         settings.customPrompt.enabled = val;
         saveSettings();
     });
 
-    const promptTextEl = document.getElementById('conv_custom_prompt_text');
-    if (promptTextEl) {
-        promptTextEl.value = settings.customPrompt.text || '';
-        promptTextEl.addEventListener('input', () => {
-            settings.customPrompt.text = promptTextEl.value;
-            saveSettings();
-        });
+    // Sync customPrompt.text from prompts.conversationSystem if empty (migration)
+    if (!settings.customPrompt.text && settings.prompts?.conversationSystem) {
+        settings.customPrompt.text = settings.prompts.conversationSystem;
     }
 
     bindSelect('conv_prompt_position', String(settings.customPrompt.position), (val) => {
@@ -164,15 +159,8 @@ export function initSettingsPanel() {
         saveSettings();
     });
 
-    const resetBtn = document.getElementById('conv_prompt_reset');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-            settings.customPrompt.text = getDefaultPromptText();
-            if (promptTextEl) promptTextEl.value = settings.customPrompt.text;
-            saveSettings();
-            toastr.info('Prompt reset to default');
-        });
-    }
+    // --- Prompt Templates ---
+    initPromptEditors(settings);
 
     // --- Schedule & Status (Phase 2) ---
     const scheduleEditorBtn = document.getElementById('conv_open_schedule_editor');
@@ -326,4 +314,207 @@ function bindRange(id, initialValue, labelId, onChange) {
         if (label) label.textContent = val;
         onChange(val);
     });
+}
+
+// ================================================================
+// Prompt Templates System
+// ================================================================
+
+const PROMPT_KEYS = [
+    'conversationSystem',
+    'scheduleGeneration',
+    'autonomousMessage',
+    'contextBlock',
+    'sceneCreation',
+    'crossMemoryConversation',
+    'crossMemoryScene',
+];
+
+/**
+ * Initialize prompt template editors and preset controls.
+ */
+function initPromptEditors(settings) {
+    if (!settings.prompts) {
+        settings.prompts = structuredClone(DEFAULT_SETTINGS.prompts);
+    }
+
+    // Populate each textarea with current value
+    for (const key of PROMPT_KEYS) {
+        const el = document.getElementById(`conv_prompt_${key}`);
+        if (!el) continue;
+        el.value = settings.prompts[key] ?? DEFAULT_SETTINGS.prompts[key] ?? '';
+        el.addEventListener('input', () => {
+            settings.prompts[key] = el.value;
+            // Keep conversationSystem in sync with customPrompt.text
+            if (key === 'conversationSystem') {
+                settings.customPrompt.text = el.value;
+            }
+            settings.activePreset = null;
+            updatePresetSelect(settings);
+            saveSettings();
+        });
+    }
+
+    // Individual reset buttons
+    document.querySelectorAll('.conv-prompt-reset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const key = btn.dataset.promptKey;
+            if (!key || !DEFAULT_SETTINGS.prompts[key]) return;
+            settings.prompts[key] = DEFAULT_SETTINGS.prompts[key];
+            const el = document.getElementById(`conv_prompt_${key}`);
+            if (el) el.value = settings.prompts[key];
+            if (key === 'conversationSystem') {
+                settings.customPrompt.text = settings.prompts[key];
+            }
+            saveSettings();
+            toastr.info(`"${key}" reset to default`);
+        });
+    });
+
+    // Preset controls
+    initPresetControls(settings);
+}
+
+/**
+ * Initialize preset save/load/delete/export/import controls.
+ */
+function initPresetControls(settings) {
+    if (!settings.promptPresets) settings.promptPresets = {};
+
+    const selectEl = document.getElementById('conv_prompt_preset_select');
+    if (!selectEl) return;
+
+    // Populate preset dropdown
+    updatePresetSelect(settings);
+
+    // Load preset on select change
+    selectEl.addEventListener('change', () => {
+        const name = selectEl.value;
+        if (!name) {
+            settings.activePreset = null;
+            saveSettings();
+            return;
+        }
+        const preset = settings.promptPresets[name];
+        if (!preset) return;
+        // Apply preset prompts
+        for (const key of PROMPT_KEYS) {
+            if (preset[key] !== undefined) {
+                settings.prompts[key] = preset[key];
+                const el = document.getElementById(`conv_prompt_${key}`);
+                if (el) el.value = settings.prompts[key];
+            }
+        }
+        settings.customPrompt.text = settings.prompts.conversationSystem;
+        settings.activePreset = name;
+        saveSettings();
+        toastr.info(`Preset "${name}" loaded`);
+    });
+
+    // Save preset
+    const saveBtn = document.getElementById('conv_prompt_preset_save');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const name = prompt('Enter preset name:', settings.activePreset || '');
+            if (!name) return;
+            const presetData = {};
+            for (const key of PROMPT_KEYS) {
+                presetData[key] = settings.prompts[key];
+            }
+            settings.promptPresets[name] = presetData;
+            settings.activePreset = name;
+            updatePresetSelect(settings);
+            saveSettings();
+            toastr.success(`Preset "${name}" saved`);
+        });
+    }
+
+    // Delete preset
+    const deleteBtn = document.getElementById('conv_prompt_preset_delete');
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+            const name = selectEl.value;
+            if (!name) {
+                toastr.warning('Select a preset to delete');
+                return;
+            }
+            if (!confirm(`Delete preset "${name}"?`)) return;
+            delete settings.promptPresets[name];
+            if (settings.activePreset === name) settings.activePreset = null;
+            updatePresetSelect(settings);
+            saveSettings();
+            toastr.info(`Preset "${name}" deleted`);
+        });
+    }
+
+    // Export prompts as JSON
+    const exportBtn = document.getElementById('conv_prompt_preset_export');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            const data = {};
+            for (const key of PROMPT_KEYS) {
+                data[key] = settings.prompts[key];
+            }
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `conv-prompts-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    }
+
+    // Import prompts from JSON
+    const importBtn = document.getElementById('conv_prompt_preset_import');
+    if (importBtn) {
+        importBtn.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.addEventListener('change', async () => {
+                const file = input.files?.[0];
+                if (!file) return;
+                try {
+                    const text = await file.text();
+                    const data = JSON.parse(text);
+                    let imported = 0;
+                    for (const key of PROMPT_KEYS) {
+                        if (typeof data[key] === 'string') {
+                            settings.prompts[key] = data[key];
+                            const el = document.getElementById(`conv_prompt_${key}`);
+                            if (el) el.value = data[key];
+                            imported++;
+                        }
+                    }
+                    settings.customPrompt.text = settings.prompts.conversationSystem;
+                    settings.activePreset = null;
+                    updatePresetSelect(settings);
+                    saveSettings();
+                    toastr.success(`Imported ${imported} prompts`);
+                } catch (e) {
+                    toastr.error(`Import failed: ${e.message}`);
+                }
+            });
+            input.click();
+        });
+    }
+}
+
+/**
+ * Update the preset dropdown to reflect current state.
+ */
+function updatePresetSelect(settings) {
+    const selectEl = document.getElementById('conv_prompt_preset_select');
+    if (!selectEl) return;
+    const current = settings.activePreset || '';
+    selectEl.innerHTML = '<option value="">-- Custom (unsaved) --</option>';
+    for (const name of Object.keys(settings.promptPresets || {})) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        selectEl.appendChild(opt);
+    }
+    selectEl.value = current;
 }

@@ -4,6 +4,7 @@
  */
 
 import { getSettings, getSceneMemories, getChatMeta, isConversationEnabled } from '../core/state.js';
+import { resolvePrompt } from '../utils/prompt-helpers.js';
 
 const CONV_TO_SCENE_PROMPT = 'conversation_to_scene_context';
 const SCENE_TO_CONV_PROMPT = 'scene_memories_context';
@@ -78,11 +79,18 @@ export function removeSceneMemoryPrompt() {
  * @returns {string}
  */
 function formatConversationContext(messages) {
+    const settings = getSettings();
+    const template = settings.prompts?.crossMemoryConversation;
+
     const lines = messages.map(m => {
         const name = m.is_user ? '{{user}}' : m.name;
         return `${name}: ${(m.mes || '').substring(0, 200)}`;
     });
 
+    if (template) {
+        return resolvePrompt(template, { messages: lines.join('\n') });
+    }
+    // Fallback
     return `[Context from text conversation between {{user}} and {{char}}:\n${lines.join('\n')}\n...]`;
 }
 
@@ -92,9 +100,18 @@ function formatConversationContext(messages) {
  * @returns {string}
  */
 function formatSceneMemories(memories) {
-    return memories.map(m =>
-        `[Shared Memory - Scene: "${m.sceneTitle}"\n${m.summary}]`
-    ).join('\n\n');
+    const settings = getSettings();
+    const template = settings.prompts?.crossMemoryScene;
+
+    return memories.map(m => {
+        if (template) {
+            return resolvePrompt(template, {
+                sceneTitle: m.sceneTitle || '',
+                summary: m.summary || '',
+            });
+        }
+        return `[Shared Memory - Scene: "${m.sceneTitle}"\n${m.summary}]`;
+    }).join('\n\n');
 }
 
 /**

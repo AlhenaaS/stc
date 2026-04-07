@@ -119,17 +119,14 @@
 
             <hr class="sysHR" />
 
-            <!-- Custom Prompt -->
+            <!-- Custom Prompt Injection Settings -->
             <div class="conversation-settings-block flex-container flexFlowColumn">
-                <h4>Custom Conversation Prompt</h4>
+                <h4>Custom Prompt Injection</h4>
 
                 <div class="flex-container alignItemsCenter">
                     <input id="conv_custom_prompt_enabled" type="checkbox" />
-                    <label for="conv_custom_prompt_enabled">Use custom prompt in conversation mode</label>
+                    <label for="conv_custom_prompt_enabled">Inject conversation system prompt</label>
                 </div>
-
-                <textarea id="conv_custom_prompt_text" class="text_pole textarea_compact" rows="4"
-                    placeholder="System prompt injected when conversation mode is active..."></textarea>
 
                 <div class="flex-container alignItemsCenter gap10">
                     <label for="conv_prompt_position">Position</label>
@@ -149,9 +146,97 @@
                         <option value="2">Assistant</option>
                     </select>
                 </div>
+            </div>
 
-                <div class="flex-container">
-                    <input id="conv_prompt_reset" class="menu_button" type="button" value="Reset to default" />
+            <hr class="sysHR" />
+
+            <!-- Prompt Templates -->
+            <div class="conversation-settings-block flex-container flexFlowColumn">
+                <h4>Prompt Templates</h4>
+
+                <p style="font-size:12px;color:var(--SmartThemeQuoteColor);margin:0 0 8px">
+                    Edit all LLM-facing prompts used by the extension. Use macros:
+                    <code>{{charName}}</code>, <code>{{user}}</code>, <code>{{charDescription}}</code>,
+                    <code>{{scenario}}</code>, <code>{{timeOfDay}}</code>, <code>{{currentTime}}</code>,
+                    <code>{{dayName}}</code>, <code>{{currentStatus}}</code>, <code>{{currentActivity}}</code>,
+                    <code>{{scheduleToday}}</code>
+                </p>
+
+                <!-- Preset controls -->
+                <div class="flex-container alignItemsCenter gap10" style="margin-bottom:8px">
+                    <select id="conv_prompt_preset_select" class="text_pole" style="flex:1">
+                        <option value="">-- Custom (unsaved) --</option>
+                    </select>
+                    <input id="conv_prompt_preset_save" class="menu_button" type="button" value="Save" title="Save current prompts as a preset" />
+                    <input id="conv_prompt_preset_delete" class="menu_button" type="button" value="Del" title="Delete selected preset" />
+                    <input id="conv_prompt_preset_export" class="menu_button" type="button" value="Export" title="Export all prompts as JSON" />
+                    <input id="conv_prompt_preset_import" class="menu_button" type="button" value="Import" title="Import prompts from JSON" />
+                </div>
+
+                <!-- Individual prompt editors -->
+                <div class="conv-prompt-editors">
+                    <div class="conv-prompt-editor-item">
+                        <div class="flex-container alignItemsCenter justifyContentSpaceBetween">
+                            <label><b>Conversation System Prompt</b></label>
+                            <input class="menu_button conv-prompt-reset-btn" type="button" value="Reset"
+                                data-prompt-key="conversationSystem" />
+                        </div>
+                        <textarea id="conv_prompt_conversationSystem" class="text_pole textarea_compact" rows="4"></textarea>
+                    </div>
+
+                    <div class="conv-prompt-editor-item">
+                        <div class="flex-container alignItemsCenter justifyContentSpaceBetween">
+                            <label><b>Schedule Generation</b></label>
+                            <input class="menu_button conv-prompt-reset-btn" type="button" value="Reset"
+                                data-prompt-key="scheduleGeneration" />
+                        </div>
+                        <textarea id="conv_prompt_scheduleGeneration" class="text_pole textarea_compact" rows="6"></textarea>
+                    </div>
+
+                    <div class="conv-prompt-editor-item">
+                        <div class="flex-container alignItemsCenter justifyContentSpaceBetween">
+                            <label><b>Autonomous Message</b></label>
+                            <input class="menu_button conv-prompt-reset-btn" type="button" value="Reset"
+                                data-prompt-key="autonomousMessage" />
+                        </div>
+                        <textarea id="conv_prompt_autonomousMessage" class="text_pole textarea_compact" rows="3"></textarea>
+                    </div>
+
+                    <div class="conv-prompt-editor-item">
+                        <div class="flex-container alignItemsCenter justifyContentSpaceBetween">
+                            <label><b>Context Injection Block</b></label>
+                            <input class="menu_button conv-prompt-reset-btn" type="button" value="Reset"
+                                data-prompt-key="contextBlock" />
+                        </div>
+                        <textarea id="conv_prompt_contextBlock" class="text_pole textarea_compact" rows="4"></textarea>
+                    </div>
+
+                    <div class="conv-prompt-editor-item">
+                        <div class="flex-container alignItemsCenter justifyContentSpaceBetween">
+                            <label><b>Scene Creation</b></label>
+                            <input class="menu_button conv-prompt-reset-btn" type="button" value="Reset"
+                                data-prompt-key="sceneCreation" />
+                        </div>
+                        <textarea id="conv_prompt_sceneCreation" class="text_pole textarea_compact" rows="5"></textarea>
+                    </div>
+
+                    <div class="conv-prompt-editor-item">
+                        <div class="flex-container alignItemsCenter justifyContentSpaceBetween">
+                            <label><b>Cross-Memory: Conversation Context</b></label>
+                            <input class="menu_button conv-prompt-reset-btn" type="button" value="Reset"
+                                data-prompt-key="crossMemoryConversation" />
+                        </div>
+                        <textarea id="conv_prompt_crossMemoryConversation" class="text_pole textarea_compact" rows="2"></textarea>
+                    </div>
+
+                    <div class="conv-prompt-editor-item">
+                        <div class="flex-container alignItemsCenter justifyContentSpaceBetween">
+                            <label><b>Cross-Memory: Scene Memory</b></label>
+                            <input class="menu_button conv-prompt-reset-btn" type="button" value="Reset"
+                                data-prompt-key="crossMemoryScene" />
+                        </div>
+                        <textarea id="conv_prompt_crossMemoryScene" class="text_pole textarea_compact" rows="2"></textarea>
+                    </div>
                 </div>
             </div>
 

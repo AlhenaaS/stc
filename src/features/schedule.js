@@ -7,8 +7,9 @@
  * - Response delay simulation
  */
 
-import { getChatMeta } from '../core/state.js';
+import { getChatMeta, getSettings } from '../core/state.js';
 import { getCurrentTime } from '../utils/time-helpers.js';
+import { resolvePrompt } from '../utils/prompt-helpers.js';
 
 /**
  * Generate a schedule for the current character using LLM.
@@ -24,50 +25,14 @@ export async function generateSchedule() {
     const char = context.characters[context.characterId];
     if (!char) return null;
 
-    const characterDescription = char.description || char.personality || '';
-    const scenario = char.scenario || '';
-
-    const prompt = `Based on this character's description, generate a realistic weekly phone/messaging schedule in JSON format.
-
-Character: ${char.name}
-Description: ${characterDescription}
-${scenario ? `Scenario: ${scenario}` : ''}
-
-The schedule should reflect the character's personality, occupation, lifestyle, and habits.
-Each day should have time blocks covering 00:00-23:59 with these statuses:
-- "online" — actively checking phone, quick responses
-- "idle" — might check phone occasionally, slower responses  
-- "dnd" — busy/focused, won't respond for a while
-- "offline" — sleeping or completely unavailable
-
-Each block needs: "from" (HH:MM), "to" (HH:MM), "status", and "activity" (brief description).
-
-Return ONLY valid JSON (no markdown, no explanation) in this exact format:
-{
-    "weekly": {
-        "monday": [
-            { "from": "00:00", "to": "07:00", "status": "offline", "activity": "Sleeping" },
-            { "from": "07:00", "to": "08:30", "status": "online", "activity": "Morning routine" },
-            { "from": "08:30", "to": "12:00", "status": "dnd", "activity": "At work/school" },
-            { "from": "12:00", "to": "13:00", "status": "online", "activity": "Lunch break" },
-            { "from": "13:00", "to": "17:00", "status": "dnd", "activity": "At work/school" },
-            { "from": "17:00", "to": "22:00", "status": "online", "activity": "Free time" },
-            { "from": "22:00", "to": "23:59", "status": "idle", "activity": "Winding down" }
-        ],
-        "tuesday": [...same format...],
-        "wednesday": [...],
-        "thursday": [...],
-        "friday": [...],
-        "saturday": [...],
-        "sunday": [...]
-    },
-    "autonomousMessaging": {
-        "enabled": true,
-        "initiateAfterInactivity": 600,
-        "maxInitiationsPerDay": 5,
-        "responseDelay": { "min": 30, "max": 180 }
+    const settings = getSettings();
+    const promptTemplate = settings.prompts?.scheduleGeneration;
+    if (!promptTemplate) {
+        toastr.error('Schedule generation prompt is empty');
+        return null;
     }
-}`;
+
+    const prompt = resolvePrompt(promptTemplate);
 
     try {
         toastr.info('Generating schedule...');
