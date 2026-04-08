@@ -145,51 +145,17 @@ export function removeContextBlock() {
 
 /**
  * Build a message representation with timestamps for the prompt.
- * This modifies how messages appear in the chat history sent to the LLM.
  *
- * Called via GENERATE_BEFORE_COMBINE_PROMPTS on the mesSendString.
+ * NOTE: Timestamps are now stamped directly into mes by stampMessage() in time-helpers.js,
+ * so this function is no longer needed for chat-completion APIs.
+ * Kept as a no-op for backward compatibility (called from events.js).
+ *
  * @param {object} data - The prompt data from the event
  */
 export function injectTimestampsIntoMessages(data) {
-    if (!isConversationEnabled()) return;
-
-    const context = SillyTavern.getContext();
-    if (!context.chat || !data.mesSendString) return;
-
-    // Rebuild mesSendString with timestamps
-    // mesSendString is a concatenation of chat messages — we need to prepend timestamps
-    // However, the actual message format depends on the API (chat completion vs text completion).
-    // For chat completions (OpenAI-style), individual messages are handled separately.
-    // For text completions, it's a single string.
-    //
-    // The most reliable approach: modify data.finalMesSend which contains the final
-    // combined messages array, OR modify mesSendString for text-completion mode.
-
-    // For text completion APIs: modify mesSendString
-    if (typeof data.mesSendString === 'string' && data.mesSendString.length > 0) {
-        const lines = data.mesSendString.split('\n');
-        const newLines = [];
-        let msgIdx = 0;
-
-        for (const line of lines) {
-            // Try to detect message boundaries and prepend timestamps
-            // ST format is usually "Name: message" or similar
-            if (line.trim().length > 0 && msgIdx < context.chat.length) {
-                const stMsg = context.chat[msgIdx];
-                if (stMsg && stMsg.send_date) {
-                    const time = formatTimestampForPrompt(stMsg.send_date);
-                    if (time && !line.includes(`[${time}]`)) {
-                        newLines.push(`[${time}] ${line}`);
-                        msgIdx++;
-                        continue;
-                    }
-                }
-            }
-            newLines.push(line);
-        }
-
-        data.mesSendString = newLines.join('\n');
-    }
+    // Timestamps are now embedded in mes (e.g. "[14:32] hello") by stampMessage().
+    // No additional injection needed — the LLM already sees them.
+    return;
 }
 
 /**

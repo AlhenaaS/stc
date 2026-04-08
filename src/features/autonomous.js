@@ -11,6 +11,7 @@
 
 import { getState, setState, getSchedule, getSettings, isConversationEnabled } from '../core/state.js';
 import { getCurrentTime } from '../utils/time-helpers.js';
+import { stampMessage } from '../utils/time-helpers.js';
 import { resolvePrompt } from '../utils/prompt-helpers.js';
 import { playNotificationSound, showBrowserNotification } from './notifications.js';
 import { addMessage } from '../ui/conversation-view.js';
@@ -168,6 +169,9 @@ async function triggerAutonomousMessage(schedule) {
             swipe_id: 0,
             swipes: [typeof result === 'string' ? result : String(result)],
         };
+
+        // Stamp the message: [HH:MM] in mes, clean text in extra.display_text
+        stampMessage(newMessage);
 
         // Push to chat array then call addOneMessage to render in ST's main view
         context.chat.push(newMessage);

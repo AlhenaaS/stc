@@ -56,14 +56,32 @@ export function isDifferentDay(a, b) {
 
 /**
  * Parse ST send_date string to Date.
- * @param {string} sendDate - e.g. "April 6, 2025 12:34pm"
+ * Handles multiple formats including SillyTavern's humanizedDateTime
+ * format: "2025-04-07@12h34m56s789ms"
+ * @param {string} sendDate
  * @returns {Date}
  */
 export function parseSendDate(sendDate) {
     if (!sendDate) return new Date();
+
+    // 1. Handle ST humanizedDateTime format: "2025-04-07@12h34m56s789ms"
+    const stMatch = sendDate.match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m(\d{2})s/);
+    if (stMatch) {
+        return new Date(
+            parseInt(stMatch[1]),
+            parseInt(stMatch[2]) - 1, // months are 0-indexed
+            parseInt(stMatch[3]),
+            parseInt(stMatch[4]),
+            parseInt(stMatch[5]),
+            parseInt(stMatch[6]),
+        );
+    }
+
+    // 2. Try native Date parsing (ISO, RFC, etc.)
     const d = new Date(sendDate);
     if (!isNaN(d.getTime())) return d;
-    // Fallback: try moment parsing
+
+    // 3. Fallback: try moment parsing with common formats
     const { moment } = SillyTavern.libs;
     const m = moment(sendDate, [
         'MMMM D, YYYY h:mma',
@@ -99,4 +117,70 @@ export function advanceCustomTime(timeConfig) {
 export function formatStatusBarTime(date) {
     const { moment } = SillyTavern.libs;
     return moment(date || getCurrentTime()).format('h:mm A');
+}
+
+/** Regex to detect an already-stamped message: starts with [HH:MM] */
+const STAMP_RE = /^\[\d{1,2}:\d{2}\]\s/;
+
+/**
+ * Stamp a SillyTavern chat message in-place:
+ *  - Saves the clean text into `extra.display_text` (what the user sees in ST UI)
+ *  - Prepends `[HH:MM] ` to `mes` (what the LLM sees)
+ *  - Also updates the `swipes` array to keep it in sync
+ *
+ * No-ops if the message is already stamped or has no content.
+ *
+ * @param {object} stMsg - A message object from context.chat[]
+ * @returns {boolean} true if the message was modified
+ */
+export function stampMessage(stMsg) {
+    if (!stMsg || !stMsg.mes) return false;
+
+    // Skip system messages (narrator, hidden system injections, etc.)
+    if (stMsg.is_system) return false;
+
+    // Already stamped — nothing to do
+    if (STAMP_RE.test(stMsg.mes)) return false;
+
+    // Determine the timestamp to use
+    const date = parseSendDate(stMsg.send_date);
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const stamp = `[${hh}:${mm}]`;
+
+    const cleanText = stMsg.mes;
+
+    // Preserve the clean text for the ST UI via extra.display_text
+    if (!stMsg.extra) stMsg.extra = {};
+    stMsg.extra.display_text = cleanText;
+
+    // Prepend the stamp to mes (what goes into context / what LLM sees)
+    stMsg.mes = `${stamp} ${cleanText}`;
+
+    // Keep the swipes array in sync
+    if (Array.isArray(stMsg.swipes)) {
+        const swipeIdx = stMsg.swipe_id ?? 0;
+        if (stMsg.swipes[swipeIdx] === cleanText) {
+            stMsg.swipes[swipeIdx] = stMsg.mes;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Batch-stamp all unstamped messages in the chat array.
+ * Intended to be called once on chat load so that historical
+ * messages also carry timestamps.
+ *
+ * @param {object[]} chat - context.chat array
+ * @returns {number} number of messages that were modified
+ */
+export function stampAllMessages(chat) {
+    if (!Array.isArray(chat)) return 0;
+    let count = 0;
+    for (const msg of chat) {
+        if (stampMessage(msg)) count++;
+    }
+    return count;
 }

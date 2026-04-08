@@ -6,7 +6,7 @@
 import { getSettings, getState, setState } from '../core/state.js';
 import { mapAllMessages, mapSingleMessage, splitForStagger } from '../utils/message-mapper.js';
 import { scrollToBottom, isNearBottom } from '../utils/dom-helpers.js';
-import { isDifferentDay } from '../utils/time-helpers.js';
+import { isDifferentDay, stampMessage } from '../utils/time-helpers.js';
 import { createBubble, updateBubbleContent, addStreamingCursor, removeStreamingCursor, showActionMenu } from './message-bubble.js';
 import { createDaySeparator } from './day-separator.js';
 import { showTypingIndicator, hideTypingIndicator } from './typing-indicator.js';
@@ -251,7 +251,7 @@ export function finalizeStreamingMessage() {
             const context = SillyTavern.getContext();
             const stMsg = context.chat[msg.stIndex];
             if (stMsg) {
-                msg.content = stMsg.mes || '';
+                msg.content = stMsg.extra?.display_text || stMsg.mes || '';
                 msg.htmlContent = formatMessageContent(msg.content);
                 updateBubbleContent(bubbleEl, msg.htmlContent);
             }
@@ -277,7 +277,8 @@ export function updateMessageByIndex(stIndex) {
         return;
     }
 
-    const htmlContent = formatMessageContent(stMsg.mes);
+    const displayContent = stMsg.extra?.display_text || stMsg.mes;
+    const htmlContent = formatMessageContent(displayContent);
     updateBubbleContent(bubbleEl, htmlContent);
 }
 
@@ -403,10 +404,17 @@ function editMessage(msg) {
         const newText = textarea.value;
         const context = SillyTavern.getContext();
         if (context.chat[msg.stIndex]) {
-            context.chat[msg.stIndex].mes = newText;
+            const stMsg = context.chat[msg.stIndex];
+            // Store clean text in extra.display_text, stamp mes with [HH:MM]
+            if (!stMsg.extra) stMsg.extra = {};
+            stMsg.extra.display_text = newText;
+            // Re-stamp: parse original send_date for the timestamp prefix
+            const stampRe = /^\[\d{1,2}:\d{2}\]\s/;
+            const existingStamp = stMsg.mes.match(stampRe);
+            stMsg.mes = existingStamp ? `${existingStamp[0]}${newText}` : newText;
             // Also update swipes array to keep in sync
-            if (context.chat[msg.stIndex].swipes) {
-                context.chat[msg.stIndex].swipes[context.chat[msg.stIndex].swipe_id || 0] = newText;
+            if (stMsg.swipes) {
+                stMsg.swipes[stMsg.swipe_id || 0] = stMsg.mes;
             }
             // saveChat = saveChatConditional (async full save)
             context.saveChat();
@@ -488,8 +496,10 @@ async function swipeMessage(msg, direction) {
 
     // Update our internal state and re-render the bubble
     msg.swipeId = stMsg.swipe_id || 0;
-    msg.content = stMsg.mes;
-    msg.htmlContent = formatMessageContent(stMsg.mes);
+    // After swipe, re-stamp and use display_text for rendering
+    stampMessage(stMsg);
+    msg.content = stMsg.extra?.display_text || stMsg.mes;
+    msg.htmlContent = formatMessageContent(msg.content);
 
     const bubbleEl = messagesEl?.querySelector(`[data-st-index="${msg.stIndex}"]`);
     if (bubbleEl) {

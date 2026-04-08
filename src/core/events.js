@@ -17,6 +17,7 @@ import { initCustomTime, stopRealtimeUpdates } from '../features/custom-time.js'
 import { refreshStatus, startStatusPolling, stopStatusPolling } from '../features/status.js';
 import { startAutonomousPolling, stopAutonomousPolling } from '../features/autonomous.js';
 import { onBeforeCombinePrompts, onAfterGenerateData, injectContextBlock, removeContextBlock, injectTimestampsIntoMessages } from '../features/context-injection.js';
+import { stampMessage, stampAllMessages } from '../utils/time-helpers.js';
 
 let eventsBound = false;
 
@@ -100,6 +101,14 @@ function onChatChanged() {
     stopAutonomousPolling();
 
     if (isConversationEnabled()) {
+        // Stamp any unstamped messages in the chat history
+        const context = SillyTavern.getContext();
+        const stamped = stampAllMessages(context.chat);
+        if (stamped > 0) {
+            console.log(`[Conversation] Stamped ${stamped} messages on chat load`);
+            context.saveChat();
+        }
+
         refreshHeader();
         renderAllMessages();
         restoreDraft();
@@ -138,6 +147,11 @@ function onMessageReceived(messageIndex) {
 
     console.log('[Conversation] Message received:', messageIndex);
 
+    // Stamp the message: [HH:MM] in mes, clean text in extra.display_text
+    if (stampMessage(stMsg)) {
+        context.saveChat();
+    }
+
     hideTypingIndicator();
 
     // If we were streaming this message, just finalize the streaming bubble
@@ -160,7 +174,7 @@ function onMessageReceived(messageIndex) {
     playNotificationSound();
     showBrowserNotification(
         stMsg.name || 'New message',
-        (stMsg.mes || '').substring(0, 100),
+        (stMsg.extra?.display_text || stMsg.mes || '').substring(0, 100),
     );
 }
 
@@ -172,6 +186,12 @@ function onMessageSent(messageIndex) {
     if (!stMsg) return;
 
     console.log('[Conversation] Message sent:', messageIndex);
+
+    // Stamp the message: [HH:MM] in mes, clean text in extra.display_text
+    if (stampMessage(stMsg)) {
+        context.saveChat();
+    }
+
     addMessage(stMsg, messageIndex, { isNew: false });
 
     setState('lastUserActivity', Date.now());

@@ -63,7 +63,7 @@ export function mapSingleMessage(stMsg, index) {
         id: `msg_${index}`,
         role,
         characterName: stMsg.name || '',
-        content: stMsg.mes || '',
+        content: stMsg.extra?.display_text || stMsg.mes || '',
         htmlContent: '', // Will be set by renderer
         timestamp,
         displayTime: formatMessageTime(timestamp),
