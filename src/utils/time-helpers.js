@@ -100,14 +100,3 @@ export function formatStatusBarTime(date) {
     const { moment } = SillyTavern.libs;
     return moment(date || getCurrentTime()).format('h:mm A');
 }
-
-/**
- * Format the current time as HH:MM for embedding into message text.
- * Used to prepend [HH:MM] to mes so the LLM sees timestamps.
- * @param {Date} [date]
- * @returns {string} e.g. "14:32"
- */
-export function formatTimestampForMessage(date) {
-    const d = date || getCurrentTime();
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}

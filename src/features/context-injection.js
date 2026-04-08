@@ -2,174 +2,45 @@
  * Context Injection: manages what gets sent to the LLM in conversation mode.
  *
  * Responsibilities:
- * - Suppress built-in RP preset prompts (main, nsfw, jailbreak, enhance definitions)
- *   for Chat Completion APIs by temporarily disabling them in prompt_order
- * - Preserve all other prompts (character card, WI, user custom prompts)
- * - Suppress main + jailbreak for text completion APIs via GENERATE_BEFORE_COMBINE_PROMPTS
+ * - Suppress the main RP system prompt from the preset
  * - Disable reasoning/thinking for chat mode
  * - Inject schedule/status/time context block
- *
- * Note: Timestamps in messages are now handled at message creation time.
- * Each message has [HH:MM] prepended in its `mes` field (visible to LLM),
- * while `extra.display_text` contains the clean text (visible in UI).
+ * - Add timestamps to chat messages in the prompt
  */
 
 import { getSettings, isConversationEnabled, getSchedule, getChatMeta } from '../core/state.js';
-import { getCurrentTime } from '../utils/time-helpers.js';
+import { getCurrentTime, formatMessageTime } from '../utils/time-helpers.js';
 import { getCurrentStatus, getStatusInfo } from './status.js';
 import { getCurrentStatusFromSchedule } from './schedule.js';
 import { resolvePrompt } from '../utils/prompt-helpers.js';
 
 const CONTEXT_PROMPT_KEY = 'conversation_context_block';
 
-/**
- * Built-in preset prompt identifiers that should be suppressed in conversation mode.
- * These are the standard RP instruction prompts from the prompt manager.
- * Only suppress prompts that contain roleplay-specific instructions —
- * everything else (character card, WI, user custom prompts) is preserved.
- */
-const PRESET_PROMPT_IDS = new Set([
-    'main',                // Main system prompt (RP instructions from preset)
-    'nsfw',                // NSFW / content prompt
-    'jailbreak',           // Jailbreak / post-history instructions
-    'enhanceDefinitions',  // Enhance definitions prompt
-]);
-
-/**
- * Saved prompt_order enabled states for restoration after generation.
- * Maps identifier → original enabled value.
- * @type {Map<string, boolean>|null}
- */
-let savedPromptStates = null;
-
-/**
- * Global dummy character ID used by prompt manager for the global prompt order.
- * ST hardcodes this to 100001 in openai.js setupChatCompletionPromptManager().
- */
-const GLOBAL_PROMPT_ORDER_ID = 100001;
-
-/**
- * Get the global prompt order entries array from ST settings.
- * @returns {Array<{identifier: string, enabled: boolean}>}
- */
-function getGlobalPromptOrder() {
-    const context = SillyTavern.getContext();
-    const promptOrder = context.chatCompletionSettings?.prompt_order;
-    if (!Array.isArray(promptOrder)) return [];
-
-    const globalEntry = promptOrder.find(
-        entry => String(entry.character_id) === String(GLOBAL_PROMPT_ORDER_ID),
-    );
-    return globalEntry?.order ?? [];
-}
-
-/**
- * Check whether a prompt_order entry should be suppressed.
- *
- * CONSERVATIVE APPROACH: Only suppress the known built-in preset prompts
- * (main, nsfw, jailbreak, enhanceDefinitions). All other prompts — including
- * user-created custom prompts — are preserved.
- *
- * Rationale: Complex presets like FrankenBUDDY reorganize character card content
- * into custom prompt entries. Suppressing all user-created prompts would remove
- * essential character information. It's safer to only suppress the well-known
- * RP instruction prompts and leave everything else intact.
- *
- * @param {string} identifier - The prompt identifier from prompt_order
- * @returns {boolean} true if this prompt should be suppressed
- */
-function shouldSuppressPrompt(identifier) {
-    return PRESET_PROMPT_IDS.has(identifier);
-}
-
-/**
- * Temporarily disable preset prompts in prompt_order.
- * Called BEFORE the Chat Completion prompt assembly (prepareOpenAIMessages).
- *
- * This works because prepareOpenAIMessages → getPromptCollection() reads
- * prompt_order[].enabled to decide which prompts to include. By flipping
- * enabled=false on preset prompts, they get excluded from the final chat array.
- *
- * The 'main' prompt is special-cased by ST's PromptManager: when disabled,
- * it's still included but with empty content (as a positional anchor for
- * relative inserts). This is fine — empty content messages are filtered out
- * by getChat() and squashSystemMessages().
- */
-export function suppressPresetPrompts() {
-    if (!isConversationEnabled()) return;
-
-    const order = getGlobalPromptOrder();
-    if (order.length === 0) return;
-
-    // Don't double-suppress if already active
-    if (savedPromptStates !== null) return;
-
-    savedPromptStates = new Map();
-
-    for (const entry of order) {
-        if (entry.enabled && shouldSuppressPrompt(entry.identifier)) {
-            savedPromptStates.set(entry.identifier, true);
-            entry.enabled = false;
-        }
-    }
-
-    if (savedPromptStates.size > 0) {
-        const suppressed = [...savedPromptStates.keys()].join(', ');
-        console.log(`[Conversation] Temporarily disabled preset prompts: ${suppressed}`);
-    } else {
-        // Nothing was suppressed (all already disabled or not present)
-        savedPromptStates = null;
-    }
-}
-
-/**
- * Restore preset prompts to their original enabled state.
- * Called AFTER prompt assembly completes (or on generation failure/stop).
- *
- * IMPORTANT: This must always be called to avoid permanently disabling
- * preset prompts. Multiple restore points are registered for safety:
- * - CHAT_COMPLETION_PROMPT_READY (normal completion)
- * - GENERATION_ENDED (generation finished)
- * - GENERATION_STOPPED (user clicked stop)
- */
-export function restorePresetPrompts() {
-    if (savedPromptStates === null) return;
-
-    const order = getGlobalPromptOrder();
-
-    for (const entry of order) {
-        if (savedPromptStates.has(entry.identifier)) {
-            entry.enabled = savedPromptStates.get(entry.identifier);
-        }
-    }
-
-    const restored = [...savedPromptStates.keys()].join(', ');
-    savedPromptStates = null;
-    console.log(`[Conversation] Restored preset prompts: ${restored}`);
-}
-
-/** Saved original values for text completion API path */
+/** Saved original values to restore when conversation mode is deactivated */
 let savedMainPrompt = null;
 let savedJailbreak = null;
 
 /**
  * Hook into GENERATE_BEFORE_COMBINE_PROMPTS to modify prompt composition.
- * This handles text completion APIs (non-OpenAI) where the prompt is combined
- * into a single string. For Chat Completion APIs, this hook has no effect
- * because getCombinedPrompt() returns '' early.
- *
- * @param {object} data - The prompt data object (contains main, jailbreak, etc.)
+ * Called by events.js before each generation.
+ * @param {object} data - The prompt data object (contains main, jailbreak, mesSendString, etc.)
  */
 export function onBeforeCombinePrompts(data) {
     if (!isConversationEnabled()) return;
 
-    // 1. Suppress the main system prompt from the preset
+    const settings = getSettings();
+
+    // 1. Suppress the main system prompt from the preset (replace with empty or our own)
     if (data.main !== undefined) {
+        // Save for potential restore
         savedMainPrompt = data.main;
+
+        // If custom prompt is enabled, it's already injected via setExtensionPrompt.
+        // We just need to blank out the RP system prompt so it doesn't interfere.
         data.main = '';
     }
 
-    // 2. Suppress jailbreak prompt
+    // 2. Suppress jailbreak prompt (the "NSFW prompt" / "assistant prefill" from presets)
     if (data.jailbreak !== undefined) {
         savedJailbreak = data.jailbreak;
         data.jailbreak = '';
@@ -186,11 +57,12 @@ export function onAfterGenerateData(generateData, dryRun) {
     if (!isConversationEnabled()) return;
     if (dryRun) return;
 
-    // Disable reasoning/thinking in chat mode
+    // 3. Disable reasoning/thinking in chat mode
     if (generateData.include_reasoning !== undefined) {
         generateData.include_reasoning = false;
     }
 
+    // Also set reasoning_effort to 'none' / minimum if present
     if (generateData.reasoning_effort !== undefined) {
         generateData.reasoning_effort = 'none';
     }
@@ -272,16 +144,72 @@ export function removeContextBlock() {
 }
 
 /**
- * Hook into CHAT_COMPLETION_PROMPT_READY.
- * Now serves only as a restoration point for prompt_order states.
- * The actual suppression happens earlier via suppressPresetPrompts().
+ * Build a message representation with timestamps for the prompt.
+ * This modifies how messages appear in the chat history sent to the LLM.
  *
- * @param {object} eventData - { chat: Array<{role, content, ...}>, dryRun: boolean }
+ * Called via GENERATE_BEFORE_COMBINE_PROMPTS on the mesSendString.
+ * @param {object} data - The prompt data from the event
  */
-export function onChatCompletionPromptReady(eventData) {
+export function injectTimestampsIntoMessages(data) {
     if (!isConversationEnabled()) return;
 
-    // Restore preset prompts after the chat array has been built.
-    // This is the primary restoration point — fires for both dry runs and real generations.
-    restorePresetPrompts();
+    const context = SillyTavern.getContext();
+    if (!context.chat || !data.mesSendString) return;
+
+    // Rebuild mesSendString with timestamps
+    // mesSendString is a concatenation of chat messages — we need to prepend timestamps
+    // However, the actual message format depends on the API (chat completion vs text completion).
+    // For chat completions (OpenAI-style), individual messages are handled separately.
+    // For text completions, it's a single string.
+    //
+    // The most reliable approach: modify data.finalMesSend which contains the final
+    // combined messages array, OR modify mesSendString for text-completion mode.
+
+    // For text completion APIs: modify mesSendString
+    if (typeof data.mesSendString === 'string' && data.mesSendString.length > 0) {
+        const lines = data.mesSendString.split('\n');
+        const newLines = [];
+        let msgIdx = 0;
+
+        for (const line of lines) {
+            // Try to detect message boundaries and prepend timestamps
+            // ST format is usually "Name: message" or similar
+            if (line.trim().length > 0 && msgIdx < context.chat.length) {
+                const stMsg = context.chat[msgIdx];
+                if (stMsg && stMsg.send_date) {
+                    const time = formatTimestampForPrompt(stMsg.send_date);
+                    if (time && !line.includes(`[${time}]`)) {
+                        newLines.push(`[${time}] ${line}`);
+                        msgIdx++;
+                        continue;
+                    }
+                }
+            }
+            newLines.push(line);
+        }
+
+        data.mesSendString = newLines.join('\n');
+    }
+}
+
+/**
+ * Format a send_date value to a short timestamp for prompt injection.
+ * @param {string} sendDate
+ * @returns {string} e.g. "07:33"
+ */
+function formatTimestampForPrompt(sendDate) {
+    if (!sendDate) return '';
+    try {
+        // ST uses humanizedDateTime format: "2025-04-07@12h34m56s789ms"
+        const match = sendDate.match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m/);
+        if (match) {
+            return `${match[4]}:${match[5]}`;
+        }
+        // Try ISO or other format
+        const d = new Date(sendDate);
+        if (!isNaN(d.getTime())) {
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+    } catch { /* fallback */ }
+    return '';
 }

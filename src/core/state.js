@@ -70,9 +70,7 @@ export const DEFAULT_SETTINGS = {
     // ================================================================
     prompts: {
         // System prompt injected into every generation in conversation mode
-        conversationSystem: `You are now in a text messaging conversation. Write short, casual messages as if texting on a phone. Use natural texting style: short sentences, occasional emoji, casual grammar. Do NOT write long paragraphs or prose-style responses. Each new line will be shown as a separate message bubble.
-
-Messages in the chat have timestamps like [14:32] or dates like [18.03.2026]. These are added automatically — do NOT include timestamps in your replies. Use them ONLY for your own time awareness to understand when things were said.`,
+        conversationSystem: `You are now in a text messaging conversation. Write short, casual messages as if texting on a phone. Use natural texting style: short sentences, occasional emoji, casual grammar. Do NOT write long paragraphs or prose-style responses. Each new line will be shown as a separate message bubble.`,
 
         // Schedule generation prompt (sent to generateRaw)
         scheduleGeneration: `Based on this character's description, generate a realistic weekly phone/messaging schedule in JSON format.
@@ -237,23 +235,6 @@ export function getSettings() {
             structuredClone(DEFAULT_SETTINGS),
             context.extensionSettings[MODULE_NAME],
         );
-
-        // --- Migrations ---
-        const settings = context.extensionSettings[MODULE_NAME];
-
-        // v1.1: Add timestamp awareness to conversationSystem prompt.
-        // Old default didn't mention timestamps; now that we suppress all preset prompts,
-        // the timestamp instruction must be in our own prompt.
-        const OLD_DEFAULT_PROMPT = 'You are now in a text messaging conversation. Write short, casual messages as if texting on a phone. Use natural texting style: short sentences, occasional emoji, casual grammar. Do NOT write long paragraphs or prose-style responses. Each new line will be shown as a separate message bubble.';
-        if (settings.prompts?.conversationSystem === OLD_DEFAULT_PROMPT) {
-            settings.prompts.conversationSystem = DEFAULT_SETTINGS.prompts.conversationSystem;
-            // Also update customPrompt.text if it was synced from the old prompt
-            if (settings.customPrompt?.text === OLD_DEFAULT_PROMPT) {
-                settings.customPrompt.text = DEFAULT_SETTINGS.prompts.conversationSystem;
-            }
-            console.log('[Conversation] Migrated conversationSystem prompt to include timestamp instructions');
-        }
-
         settingsInitialized = true;
     }
     return context.extensionSettings[MODULE_NAME];

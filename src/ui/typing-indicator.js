@@ -35,8 +35,7 @@ export function showTypingIndicator(characterName) {
  */
 export function hideTypingIndicator() {
     const el = document.getElementById('conv-typing');
-    if (el && el.classList.contains('conv-typing-visible')) {
-        console.log('[Conversation] hideTypingIndicator called from:', new Error().stack?.split('\n')[2]?.trim());
+    if (el) {
         el.classList.remove('conv-typing-visible');
         // Also force inline style as belt-and-suspenders
         el.style.display = '';
