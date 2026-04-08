@@ -2,8 +2,9 @@
  * Context Injection: manages what gets sent to the LLM in conversation mode.
  *
  * Responsibilities:
- * - Suppress ALL preset prompts (main, nsfw, jailbreak, enhance definitions, etc.)
+ * - Suppress built-in RP preset prompts (main, nsfw, jailbreak, enhance definitions)
  *   for Chat Completion APIs by temporarily disabling them in prompt_order
+ * - Preserve all other prompts (character card, WI, user custom prompts)
  * - Suppress main + jailbreak for text completion APIs via GENERATE_BEFORE_COMBINE_PROMPTS
  * - Disable reasoning/thinking for chat mode
  * - Inject schedule/status/time context block
@@ -22,32 +23,16 @@ import { resolvePrompt } from '../utils/prompt-helpers.js';
 const CONTEXT_PROMPT_KEY = 'conversation_context_block';
 
 /**
- * Built-in preset prompt identifiers that should ALWAYS be suppressed in conversation mode.
- * These are the standard editable system prompts from the prompt manager.
+ * Built-in preset prompt identifiers that should be suppressed in conversation mode.
+ * These are the standard RP instruction prompts from the prompt manager.
+ * Only suppress prompts that contain roleplay-specific instructions —
+ * everything else (character card, WI, user custom prompts) is preserved.
  */
 const PRESET_PROMPT_IDS = new Set([
     'main',                // Main system prompt (RP instructions from preset)
     'nsfw',                // NSFW / content prompt
     'jailbreak',           // Jailbreak / post-history instructions
     'enhanceDefinitions',  // Enhance definitions prompt
-]);
-
-/**
- * Built-in prompt identifiers that should NEVER be suppressed.
- * These are structural markers and character card entries that provide
- * necessary context (character description, personality, scenario, WI, etc.).
- * Extension prompts are not in prompt_order at all — they're injected separately.
- */
-const PRESERVE_PROMPT_IDS = new Set([
-    'chatHistory',          // Chat history marker (structural)
-    'dialogueExamples',     // Dialogue examples marker (from char card)
-    'worldInfoBefore',      // World Info (before char card)
-    'worldInfoAfter',       // World Info (after char card)
-    'charDescription',      // Character description
-    'charPersonality',      // Character personality
-    'scenario',             // Scenario
-    'personaDescription',   // User persona description
-    'groupNudge',           // Group nudge prompt
 ]);
 
 /**
@@ -80,43 +65,21 @@ function getGlobalPromptOrder() {
 
 /**
  * Check whether a prompt_order entry should be suppressed.
- * Suppresses:
- * - Built-in preset prompts (main, nsfw, jailbreak, enhanceDefinitions)
- * - User-created custom prompts in the preset (system_prompt === false, UUID identifiers)
- * Preserves:
- * - Character card entries (charDescription, charPersonality, scenario, etc.)
- * - Structural markers (chatHistory, worldInfoBefore/After, dialogueExamples)
- * - Extension prompts (not in prompt_order at all — injected via setExtensionPrompt)
+ *
+ * CONSERVATIVE APPROACH: Only suppress the known built-in preset prompts
+ * (main, nsfw, jailbreak, enhanceDefinitions). All other prompts — including
+ * user-created custom prompts — are preserved.
+ *
+ * Rationale: Complex presets like FrankenBUDDY reorganize character card content
+ * into custom prompt entries. Suppressing all user-created prompts would remove
+ * essential character information. It's safer to only suppress the well-known
+ * RP instruction prompts and leave everything else intact.
  *
  * @param {string} identifier - The prompt identifier from prompt_order
  * @returns {boolean} true if this prompt should be suppressed
  */
 function shouldSuppressPrompt(identifier) {
-    // Always suppress known preset prompts
-    if (PRESET_PROMPT_IDS.has(identifier)) return true;
-
-    // Never suppress preserved structural / character card prompts
-    if (PRESERVE_PROMPT_IDS.has(identifier)) return false;
-
-    // For unknown identifiers: check if it's a user-created prompt (UUID format)
-    // by looking up the prompt definition. User prompts have system_prompt === false.
-    const context = SillyTavern.getContext();
-    const prompts = context.chatCompletionSettings?.prompts;
-    if (Array.isArray(prompts)) {
-        const promptDef = prompts.find(p => p && p.identifier === identifier);
-        if (promptDef) {
-            // User-created prompts have system_prompt === false and marker === false/undefined
-            // These are custom instructions added to the preset — suppress them.
-            if (promptDef.system_prompt === false && !promptDef.marker) {
-                return true;
-            }
-            // System prompt with marker = structural element — preserve
-            if (promptDef.marker) return false;
-        }
-    }
-
-    // Unknown identifier not in definitions — leave it alone (safety)
-    return false;
+    return PRESET_PROMPT_IDS.has(identifier);
 }
 
 /**
