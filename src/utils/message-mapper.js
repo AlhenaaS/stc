@@ -58,12 +58,16 @@ export function mapSingleMessage(stMsg, index) {
     const timestamp = parseSendDate(stMsg.send_date);
     const avatarUrl = getAvatarUrl(stMsg, role);
 
+    // Use display_text (clean text) for our conversation UI if available.
+    // The `mes` field may contain [HH:MM] timestamp prefix for LLM context.
+    const displayContent = stMsg.extra?.display_text || stMsg.mes || '';
+
     return {
         stIndex: index,
         id: `msg_${index}`,
         role,
         characterName: stMsg.name || '',
-        content: stMsg.mes || '',
+        content: displayContent,
         htmlContent: '', // Will be set by renderer
         timestamp,
         displayTime: formatMessageTime(timestamp),

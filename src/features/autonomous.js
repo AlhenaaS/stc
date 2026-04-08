@@ -10,7 +10,7 @@
  */
 
 import { getState, setState, getSchedule, getSettings, isConversationEnabled } from '../core/state.js';
-import { getCurrentTime } from '../utils/time-helpers.js';
+import { getCurrentTime, formatTimestampForMessage } from '../utils/time-helpers.js';
 import { resolvePrompt } from '../utils/prompt-helpers.js';
 import { playNotificationSound, showBrowserNotification } from './notifications.js';
 import { addMessage } from '../ui/conversation-view.js';
@@ -155,18 +155,23 @@ async function triggerAutonomousMessage(schedule) {
 
         if (!result) return;
 
-        // Create a character message object and add it to chat
+        // Create a character message object with timestamp in mes for LLM context,
+        // and clean text in display_text for UI rendering
+        const responseText = typeof result === 'string' ? result : String(result);
+        const timeStr = formatTimestampForMessage();
+
         const newMessage = {
             name: char.name,
             is_user: false,
             is_system: false,
-            mes: typeof result === 'string' ? result : String(result),
-            send_date: context.humanizedDateTime(),
+            mes: `[${timeStr}] ${responseText}`,
+            send_date: new Date().toISOString(),
             extra: {
                 isAutonomous: true,
+                display_text: responseText,
             },
             swipe_id: 0,
-            swipes: [typeof result === 'string' ? result : String(result)],
+            swipes: [`[${timeStr}] ${responseText}`],
         };
 
         // Push to chat array then call addOneMessage to render in ST's main view

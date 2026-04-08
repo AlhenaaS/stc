@@ -6,7 +6,7 @@
 import { getSettings, getState, setState } from '../core/state.js';
 import { mapAllMessages, mapSingleMessage, splitForStagger } from '../utils/message-mapper.js';
 import { scrollToBottom, isNearBottom } from '../utils/dom-helpers.js';
-import { isDifferentDay } from '../utils/time-helpers.js';
+import { isDifferentDay, formatTimestampForMessage } from '../utils/time-helpers.js';
 import { createBubble, updateBubbleContent, addStreamingCursor, removeStreamingCursor, showActionMenu } from './message-bubble.js';
 import { createDaySeparator } from './day-separator.js';
 import { showTypingIndicator, hideTypingIndicator } from './typing-indicator.js';
@@ -277,7 +277,9 @@ export function updateMessageByIndex(stIndex) {
         return;
     }
 
-    const htmlContent = formatMessageContent(stMsg.mes);
+    // Use display_text (clean) for our UI, falling back to mes
+    const content = stMsg.extra?.display_text || stMsg.mes;
+    const htmlContent = formatMessageContent(content);
     updateBubbleContent(bubbleEl, htmlContent);
 }
 
@@ -403,11 +405,28 @@ function editMessage(msg) {
         const newText = textarea.value;
         const context = SillyTavern.getContext();
         if (context.chat[msg.stIndex]) {
-            context.chat[msg.stIndex].mes = newText;
-            // Also update swipes array to keep in sync
-            if (context.chat[msg.stIndex].swipes) {
-                context.chat[msg.stIndex].swipes[context.chat[msg.stIndex].swipe_id || 0] = newText;
+            const stMsg = context.chat[msg.stIndex];
+
+            // Preserve the [HH:MM] timestamp prefix in mes if it existed
+            const timestampMatch = stMsg.mes?.match(/^\[\d{2}:\d{2}\]\s/);
+            if (timestampMatch) {
+                // Update mes with existing timestamp + new text
+                stMsg.mes = `${timestampMatch[0]}${newText}`;
+            } else {
+                // No timestamp prefix — add one
+                const timeStr = formatTimestampForMessage();
+                stMsg.mes = `[${timeStr}] ${newText}`;
             }
+
+            // Update display_text (clean text for UI)
+            if (!stMsg.extra) stMsg.extra = {};
+            stMsg.extra.display_text = newText;
+
+            // Also update swipes array to keep in sync
+            if (stMsg.swipes) {
+                stMsg.swipes[stMsg.swipe_id || 0] = stMsg.mes;
+            }
+
             // saveChat = saveChatConditional (async full save)
             context.saveChat();
         }

@@ -5,11 +5,14 @@
  * - Suppress the main RP system prompt from the preset
  * - Disable reasoning/thinking for chat mode
  * - Inject schedule/status/time context block
- * - Add timestamps to chat messages in the prompt
+ *
+ * Note: Timestamps in messages are now handled at message creation time.
+ * Each message has [HH:MM] prepended in its `mes` field (visible to LLM),
+ * while `extra.display_text` contains the clean text (visible in UI).
  */
 
 import { getSettings, isConversationEnabled, getSchedule, getChatMeta } from '../core/state.js';
-import { getCurrentTime, formatMessageTime } from '../utils/time-helpers.js';
+import { getCurrentTime } from '../utils/time-helpers.js';
 import { getCurrentStatus, getStatusInfo } from './status.js';
 import { getCurrentStatusFromSchedule } from './schedule.js';
 import { resolvePrompt } from '../utils/prompt-helpers.js';
@@ -141,75 +144,4 @@ export function injectContextBlock() {
 export function removeContextBlock() {
     const context = SillyTavern.getContext();
     context.setExtensionPrompt(CONTEXT_PROMPT_KEY, '', 0, 0, false, 0);
-}
-
-/**
- * Build a message representation with timestamps for the prompt.
- * This modifies how messages appear in the chat history sent to the LLM.
- *
- * Called via GENERATE_BEFORE_COMBINE_PROMPTS on the mesSendString.
- * @param {object} data - The prompt data from the event
- */
-export function injectTimestampsIntoMessages(data) {
-    if (!isConversationEnabled()) return;
-
-    const context = SillyTavern.getContext();
-    if (!context.chat || !data.mesSendString) return;
-
-    // Rebuild mesSendString with timestamps
-    // mesSendString is a concatenation of chat messages — we need to prepend timestamps
-    // However, the actual message format depends on the API (chat completion vs text completion).
-    // For chat completions (OpenAI-style), individual messages are handled separately.
-    // For text completions, it's a single string.
-    //
-    // The most reliable approach: modify data.finalMesSend which contains the final
-    // combined messages array, OR modify mesSendString for text-completion mode.
-
-    // For text completion APIs: modify mesSendString
-    if (typeof data.mesSendString === 'string' && data.mesSendString.length > 0) {
-        const lines = data.mesSendString.split('\n');
-        const newLines = [];
-        let msgIdx = 0;
-
-        for (const line of lines) {
-            // Try to detect message boundaries and prepend timestamps
-            // ST format is usually "Name: message" or similar
-            if (line.trim().length > 0 && msgIdx < context.chat.length) {
-                const stMsg = context.chat[msgIdx];
-                if (stMsg && stMsg.send_date) {
-                    const time = formatTimestampForPrompt(stMsg.send_date);
-                    if (time && !line.includes(`[${time}]`)) {
-                        newLines.push(`[${time}] ${line}`);
-                        msgIdx++;
-                        continue;
-                    }
-                }
-            }
-            newLines.push(line);
-        }
-
-        data.mesSendString = newLines.join('\n');
-    }
-}
-
-/**
- * Format a send_date value to a short timestamp for prompt injection.
- * @param {string} sendDate
- * @returns {string} e.g. "07:33"
- */
-function formatTimestampForPrompt(sendDate) {
-    if (!sendDate) return '';
-    try {
-        // ST uses humanizedDateTime format: "2025-04-07@12h34m56s789ms"
-        const match = sendDate.match(/(\d{4})-(\d{2})-(\d{2})@(\d{2})h(\d{2})m/);
-        if (match) {
-            return `${match[4]}:${match[5]}`;
-        }
-        // Try ISO or other format
-        const d = new Date(sendDate);
-        if (!isNaN(d.getTime())) {
-            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-        }
-    } catch { /* fallback */ }
-    return '';
 }

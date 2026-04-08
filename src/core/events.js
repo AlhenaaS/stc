@@ -3,20 +3,17 @@
  */
 
 import { getSettings, getState, setState, isConversationEnabled } from './state.js';
-import { renderAllMessages, addMessage, updateStreamingMessage, finalizeStreamingMessage, updateMessageByIndex, removeMessageByIndex } from '../ui/conversation-view.js';
-import { showTypingIndicator, hideTypingIndicator } from '../ui/typing-indicator.js';
-import { updateSendButton } from '../ui/input-bar.js';
+import { renderAllMessages, addMessage, updateMessageByIndex, removeMessageByIndex } from '../ui/conversation-view.js';
+import { hideTypingIndicator } from '../ui/typing-indicator.js';
 import { refreshHeader } from '../ui/header-bar.js';
 import { restoreDraft } from '../ui/input-bar.js';
 import { showPhone, hidePhone, minimizePhone, updateBadge } from '../ui/phone-window.js';
-import { playNotificationSound, showBrowserNotification } from '../features/notifications.js';
-import { injectCustomPrompt, removeCustomPrompt } from '../features/custom-prompt.js';
+import { removeCustomPrompt, injectCustomPrompt } from '../features/custom-prompt.js';
 import { cancelStagger } from '../features/stagger.js';
-import { advanceTimeOnMessage } from '../features/custom-time.js';
 import { initCustomTime, stopRealtimeUpdates } from '../features/custom-time.js';
 import { refreshStatus, startStatusPolling, stopStatusPolling } from '../features/status.js';
 import { startAutonomousPolling, stopAutonomousPolling } from '../features/autonomous.js';
-import { onBeforeCombinePrompts, onAfterGenerateData, injectContextBlock, removeContextBlock, injectTimestampsIntoMessages } from '../features/context-injection.js';
+import { onBeforeCombinePrompts, onAfterGenerateData, injectContextBlock } from '../features/context-injection.js';
 
 let eventsBound = false;
 
@@ -31,26 +28,19 @@ export function bindEvents() {
     // App lifecycle
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
 
-    // Messages
+    // Messages — kept for external triggers (ST native UI, other extensions)
+    // Our own handleSendMessage renders directly, so these are fallback-only.
     eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
     eventSource.on(event_types.MESSAGE_SENT, onMessageSent);
     eventSource.on(event_types.MESSAGE_EDITED, onMessageEdited);
     eventSource.on(event_types.MESSAGE_DELETED, onMessageDeleted);
 
-    // Generation
-    eventSource.on(event_types.GENERATION_STARTED, onGenerationStarted);
-    eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
-    eventSource.on(event_types.GENERATION_STOPPED, onGenerationStopped);
-
-    // Streaming
-    if (event_types.STREAM_TOKEN_RECEIVED) {
-        eventSource.on(event_types.STREAM_TOKEN_RECEIVED, onStreamToken);
-    }
-
     // Generation hooks for prompt injection
+    // These are still needed: generateQuietPrompt runs the full Generate() pipeline
+    // which fires GENERATION_AFTER_COMMANDS → we inject custom prompt + context block.
     eventSource.on(event_types.GENERATION_AFTER_COMMANDS, onBeforeGeneration);
 
-    // Prompt composition hooks (suppress RP system prompt, inject context)
+    // Prompt composition hooks (suppress RP system prompt from presets)
     eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePromptsHandler);
     eventSource.on(event_types.GENERATE_AFTER_DATA, onAfterGenerateDataHandler);
 
@@ -71,14 +61,6 @@ export function unbindEvents() {
     eventSource.removeListener(event_types.MESSAGE_SENT, onMessageSent);
     eventSource.removeListener(event_types.MESSAGE_EDITED, onMessageEdited);
     eventSource.removeListener(event_types.MESSAGE_DELETED, onMessageDeleted);
-    eventSource.removeListener(event_types.GENERATION_STARTED, onGenerationStarted);
-    eventSource.removeListener(event_types.GENERATION_ENDED, onGenerationEnded);
-    eventSource.removeListener(event_types.GENERATION_STOPPED, onGenerationStopped);
-
-    if (event_types.STREAM_TOKEN_RECEIVED) {
-        eventSource.removeListener(event_types.STREAM_TOKEN_RECEIVED, onStreamToken);
-    }
-
     eventSource.removeListener(event_types.GENERATION_AFTER_COMMANDS, onBeforeGeneration);
     eventSource.removeListener(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePromptsHandler);
     eventSource.removeListener(event_types.GENERATE_AFTER_DATA, onAfterGenerateDataHandler);
@@ -129,6 +111,12 @@ function onChatChanged() {
     }
 }
 
+/**
+ * Handle MESSAGE_RECEIVED from ST.
+ * This fires when messages are added through ST's native pipeline (e.g., from other extensions
+ * or if the user uses ST's main chat UI directly). Our own handleSendMessage already renders
+ * messages directly, so we skip rendering if the message is already in our view.
+ */
 function onMessageReceived(messageIndex) {
     if (!isConversationEnabled() || !getState('isActive')) return;
 
@@ -136,34 +124,22 @@ function onMessageReceived(messageIndex) {
     const stMsg = context.chat[messageIndex];
     if (!stMsg) return;
 
-    console.log('[Conversation] Message received:', messageIndex);
+    // addMessage internally checks for duplicates (data-st-index), so this is safe
+    addMessage(stMsg, messageIndex, { isNew: true });
 
-    hideTypingIndicator();
-
-    // If we were streaming this message, just finalize the streaming bubble
-    // instead of adding a new one (prevents duplicate bubbles)
-    if (getState('streamingBubble')) {
-        finalizeStreamingMessage();
-    } else {
-        addMessage(stMsg, messageIndex, { isNew: true });
-    }
-
-    setState('isGenerating', false);
-    updateSendButton(false);
-
-    // Increment unread count if minimized
+    // Notifications for messages we didn't generate ourselves
+    // (e.g., from other extensions or ST native UI)
     if (getState('isMinimized')) {
         setState('unreadCount', (getState('unreadCount') || 0) + 1);
         updateBadge();
     }
-
-    playNotificationSound();
-    showBrowserNotification(
-        stMsg.name || 'New message',
-        (stMsg.mes || '').substring(0, 100),
-    );
 }
 
+/**
+ * Handle MESSAGE_SENT from ST.
+ * Same as MESSAGE_RECEIVED — our pipeline already handles this, but this catches
+ * messages sent through ST's native UI.
+ */
 function onMessageSent(messageIndex) {
     if (!isConversationEnabled() || !getState('isActive')) return;
 
@@ -171,13 +147,8 @@ function onMessageSent(messageIndex) {
     const stMsg = context.chat[messageIndex];
     if (!stMsg) return;
 
-    console.log('[Conversation] Message sent:', messageIndex);
+    // addMessage checks for duplicates
     addMessage(stMsg, messageIndex, { isNew: false });
-
-    setState('lastUserActivity', Date.now());
-
-    // Phase 2: advance custom game time on user message
-    advanceTimeOnMessage();
 }
 
 function onMessageEdited(messageIndex) {
@@ -190,82 +161,16 @@ function onMessageDeleted(messageIndex) {
     removeMessageByIndex(messageIndex);
 }
 
-function onGenerationStarted() {
-    if (!isConversationEnabled() || !getState('isActive')) return;
-
-    // Delay the check slightly — GENERATION_STARTED may fire before ST updates its UI
-    setTimeout(() => {
-        // Double-check we're still active and conversation mode is on
-        if (!isConversationEnabled() || !getState('isActive')) return;
-
-        // Verify a real generation is happening — check if ST's stop button is visible
-        const stopButton = document.getElementById('mes_stop');
-        const isReallyGenerating = stopButton
-            && getComputedStyle(stopButton).display !== 'none';
-
-        if (!isReallyGenerating) {
-            console.log('[Conversation] GENERATION_STARTED fired but no active generation detected, ignoring');
-            return;
-        }
-
-        setState('isGenerating', true);
-        updateSendButton(true);
-
-        const context = SillyTavern.getContext();
-        const charName = context.characterId !== undefined
-            ? context.characters[context.characterId]?.name
-            : '';
-        showTypingIndicator(charName);
-    }, 100);
-}
-
-function onGenerationEnded() {
-    if (!isConversationEnabled()) return;
-
-    setState('isGenerating', false);
-    updateSendButton(false);
-    hideTypingIndicator();
-    finalizeStreamingMessage();
-}
-
-function onGenerationStopped() {
-    if (!isConversationEnabled()) return;
-
-    setState('isGenerating', false);
-    updateSendButton(false);
-    hideTypingIndicator();
-    finalizeStreamingMessage();
-    cancelStagger();
-}
-
-function onStreamToken(data) {
-    if (!isConversationEnabled() || !getState('isActive')) return;
-
-    // During streaming, update the last message bubble
-    hideTypingIndicator();
-
-    const context = SillyTavern.getContext();
-    const lastMsg = context.chat[context.chat.length - 1];
-    if (!lastMsg || lastMsg.is_user) return;
-
-    // If no streaming bubble exists yet, create one
-    if (!getState('streamingBubble')) {
-        addMessage(lastMsg, context.chat.length - 1, { isNew: false, isStreaming: true });
-    } else {
-        updateStreamingMessage(lastMsg.mes || '');
-    }
-}
-
 function onBeforeGeneration() {
-    // Inject custom prompt + context block before generation
+    // Inject custom prompt + context block before generation.
+    // This fires for both our generateQuietPrompt calls and any other generation.
     injectCustomPrompt();
     injectContextBlock();
 }
 
 function onBeforeCombinePromptsHandler(data) {
-    // Suppress RP system prompt and inject timestamps
+    // Suppress RP system prompt from presets in conversation mode
     onBeforeCombinePrompts(data);
-    injectTimestampsIntoMessages(data);
 }
 
 function onAfterGenerateDataHandler(generateData, dryRun) {
