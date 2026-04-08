@@ -206,7 +206,9 @@ async function handleSendMessage(text) {
         injectContextBlock();
 
         // --- 3. Show typing indicator ---
+        console.log('[Conversation] About to show typing indicator for:', char.name);
         showTypingIndicator(char.name);
+        console.log('[Conversation] Typing indicator shown, starting generation...');
 
         // --- 4. Generate response via generateQuietPrompt ---
         // This runs the full Generate pipeline (lorebooks, WI, char card, extension prompts)
@@ -219,6 +221,7 @@ async function handleSendMessage(text) {
             removeReasoning: true,
         });
 
+        console.log('[Conversation] Generation complete, hiding typing indicator');
         hideTypingIndicator();
 
         if (!result) {
