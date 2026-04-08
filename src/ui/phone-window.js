@@ -348,11 +348,6 @@ function setupResize() {
 }
 
 function setupMinimize() {
-    const minimizeBtn = document.getElementById('conv-btn-minimize');
-    if (minimizeBtn) {
-        minimizeBtn.addEventListener('click', minimizePhone);
-    }
-
     const minimizedIcon = document.getElementById('conv-minimized-icon');
     if (minimizedIcon) {
         setupIconDrag(minimizedIcon);

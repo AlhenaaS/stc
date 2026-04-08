@@ -13,6 +13,7 @@ import { getState, setState, getSchedule, getSettings, isConversationEnabled } f
 import { getCurrentTime } from '../utils/time-helpers.js';
 import { resolvePrompt } from '../utils/prompt-helpers.js';
 import { playNotificationSound, showBrowserNotification } from './notifications.js';
+import { addMessage } from '../ui/conversation-view.js';
 import { canReceiveMessages } from './status.js';
 import { delay } from '../utils/dom-helpers.js';
 
@@ -172,6 +173,10 @@ async function triggerAutonomousMessage(schedule) {
         context.chat.push(newMessage);
         context.addOneMessage(newMessage, { scroll: false });
         await context.saveChat();
+
+        // Also render in our conversation view
+        const msgIndex = context.chat.length - 1;
+        addMessage(newMessage, msgIndex, { isNew: true });
 
         // Update counters
         setState('todayInitiations', (getState('todayInitiations') || 0) + 1);

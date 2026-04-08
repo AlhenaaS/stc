@@ -101,8 +101,11 @@ function autoGrow() {
     textareaEl.style.height = '0'; // Reset to measure true scrollHeight
     const minHeight = 36; // matches CSS min-height
     const maxHeight = 200; // ~6 lines
-    const newHeight = Math.max(minHeight, Math.min(textareaEl.scrollHeight, maxHeight));
+    const scrollH = textareaEl.scrollHeight;
+    const newHeight = Math.max(minHeight, Math.min(scrollH, maxHeight));
     textareaEl.style.height = `${newHeight}px`;
+    // Only allow scrolling when content exceeds max height
+    textareaEl.style.overflowY = scrollH > maxHeight ? 'auto' : 'hidden';
 }
 
 /**

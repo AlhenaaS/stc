@@ -171,19 +171,49 @@ export async function openStatusPicker() {
         </div>
     </div>`;
 
-    const { Popup, POPUP_TYPE } = SillyTavern.getContext();
-    const popup = new Popup(html, POPUP_TYPE.TEXT, '', {
-        okButton: 'Apply',
-        cancelButton: 'Cancel',
-    });
-
-    const result = await popup.show();
-    if (result) {
-        const selected = document.querySelector('input[name="conv_status_pick"]:checked')?.value;
-        if (selected === '__clear__') {
-            setStatusOverride(null);
-        } else if (selected) {
-            setStatusOverride(selected);
+    try {
+        const context = SillyTavern.getContext();
+        // Try callGenericPopup (ST 1.12+)
+        if (typeof context.callGenericPopup === 'function') {
+            const result = await context.callGenericPopup(html, context.POPUP_TYPE?.CONFIRM ?? 1);
+            if (result) {
+                applyStatusFromPicker();
+            }
+            return;
         }
+        // Fallback: try Popup class
+        if (context.Popup) {
+            const popup = new context.Popup(html, context.POPUP_TYPE?.TEXT ?? 4, '', {
+                okButton: 'Apply',
+                cancelButton: 'Cancel',
+            });
+            const result = await popup.show();
+            if (result) {
+                applyStatusFromPicker();
+            }
+            return;
+        }
+        // Last resort: simple prompt
+        const statuses = ['online', 'idle', 'dnd', 'offline', 'clear'];
+        const choice = prompt(`Set status (${statuses.join('/')}):`);
+        if (choice === 'clear') {
+            setStatusOverride(null);
+        } else if (STATUS_MAP[choice]) {
+            setStatusOverride(choice);
+        }
+    } catch (e) {
+        console.error('[Conversation] Status picker failed:', e);
+    }
+}
+
+/**
+ * Apply the status selected in the picker radio buttons.
+ */
+function applyStatusFromPicker() {
+    const selected = document.querySelector('input[name="conv_status_pick"]:checked')?.value;
+    if (selected === '__clear__') {
+        setStatusOverride(null);
+    } else if (selected) {
+        setStatusOverride(selected);
     }
 }

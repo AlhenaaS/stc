@@ -50,7 +50,7 @@ export function resolvePrompt(template, extra = {}) {
         charPersonality: char?.personality || '',
         scenario: scenario ? `Scenario: ${scenario}` : '',
         user: context.name1 || 'User',
-        timeOfDay: now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening',
+        timeOfDay: getTimeOfDay(now.getHours()),
         currentTime: `${hours}:${minutes}`,
         currentDate: `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`,
         dayName: dayNames[now.getDay()],
@@ -75,4 +75,16 @@ export function resolvePrompt(template, extra = {}) {
     result = result.replace(/^\s*\n/gm, '');
 
     return result;
+}
+
+/**
+ * Determine the time-of-day label from hour.
+ * @param {number} hour - 0..23
+ * @returns {string}
+ */
+function getTimeOfDay(hour) {
+    if (hour >= 5 && hour < 12) return 'morning';
+    if (hour >= 12 && hour < 17) return 'afternoon';
+    if (hour >= 17 && hour < 21) return 'evening';
+    return 'night'; // 21:00–04:59
 }

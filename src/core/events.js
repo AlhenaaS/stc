@@ -90,7 +90,7 @@ export function unbindEvents() {
 // --- Event Handlers ---
 
 function onChatChanged() {
-    console.log('[Conversation] Chat changed');
+    console.log('[Conversation] Chat changed, conversationEnabled:', isConversationEnabled());
     cancelStagger();
     hideTypingIndicator();
     setState('isGenerating', false);
