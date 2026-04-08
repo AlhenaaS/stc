@@ -2,7 +2,9 @@
  * Context Injection: manages what gets sent to the LLM in conversation mode.
  *
  * Responsibilities:
- * - Suppress the main RP system prompt from the preset
+ * - Suppress ALL preset prompts (main, nsfw, jailbreak, enhance definitions, etc.)
+ *   for Chat Completion APIs by temporarily disabling them in prompt_order
+ * - Suppress main + jailbreak for text completion APIs via GENERATE_BEFORE_COMBINE_PROMPTS
  * - Disable reasoning/thinking for chat mode
  * - Inject schedule/status/time context block
  *
@@ -19,31 +21,192 @@ import { resolvePrompt } from '../utils/prompt-helpers.js';
 
 const CONTEXT_PROMPT_KEY = 'conversation_context_block';
 
-/** Saved original values to restore when conversation mode is deactivated */
+/**
+ * Built-in preset prompt identifiers that should ALWAYS be suppressed in conversation mode.
+ * These are the standard editable system prompts from the prompt manager.
+ */
+const PRESET_PROMPT_IDS = new Set([
+    'main',                // Main system prompt (RP instructions from preset)
+    'nsfw',                // NSFW / content prompt
+    'jailbreak',           // Jailbreak / post-history instructions
+    'enhanceDefinitions',  // Enhance definitions prompt
+]);
+
+/**
+ * Built-in prompt identifiers that should NEVER be suppressed.
+ * These are structural markers and character card entries that provide
+ * necessary context (character description, personality, scenario, WI, etc.).
+ * Extension prompts are not in prompt_order at all — they're injected separately.
+ */
+const PRESERVE_PROMPT_IDS = new Set([
+    'chatHistory',          // Chat history marker (structural)
+    'dialogueExamples',     // Dialogue examples marker (from char card)
+    'worldInfoBefore',      // World Info (before char card)
+    'worldInfoAfter',       // World Info (after char card)
+    'charDescription',      // Character description
+    'charPersonality',      // Character personality
+    'scenario',             // Scenario
+    'personaDescription',   // User persona description
+    'groupNudge',           // Group nudge prompt
+]);
+
+/**
+ * Saved prompt_order enabled states for restoration after generation.
+ * Maps identifier → original enabled value.
+ * @type {Map<string, boolean>|null}
+ */
+let savedPromptStates = null;
+
+/**
+ * Global dummy character ID used by prompt manager for the global prompt order.
+ * ST hardcodes this to 100001 in openai.js setupChatCompletionPromptManager().
+ */
+const GLOBAL_PROMPT_ORDER_ID = 100001;
+
+/**
+ * Get the global prompt order entries array from ST settings.
+ * @returns {Array<{identifier: string, enabled: boolean}>}
+ */
+function getGlobalPromptOrder() {
+    const context = SillyTavern.getContext();
+    const promptOrder = context.chatCompletionSettings?.prompt_order;
+    if (!Array.isArray(promptOrder)) return [];
+
+    const globalEntry = promptOrder.find(
+        entry => String(entry.character_id) === String(GLOBAL_PROMPT_ORDER_ID),
+    );
+    return globalEntry?.order ?? [];
+}
+
+/**
+ * Check whether a prompt_order entry should be suppressed.
+ * Suppresses:
+ * - Built-in preset prompts (main, nsfw, jailbreak, enhanceDefinitions)
+ * - User-created custom prompts in the preset (system_prompt === false, UUID identifiers)
+ * Preserves:
+ * - Character card entries (charDescription, charPersonality, scenario, etc.)
+ * - Structural markers (chatHistory, worldInfoBefore/After, dialogueExamples)
+ * - Extension prompts (not in prompt_order at all — injected via setExtensionPrompt)
+ *
+ * @param {string} identifier - The prompt identifier from prompt_order
+ * @returns {boolean} true if this prompt should be suppressed
+ */
+function shouldSuppressPrompt(identifier) {
+    // Always suppress known preset prompts
+    if (PRESET_PROMPT_IDS.has(identifier)) return true;
+
+    // Never suppress preserved structural / character card prompts
+    if (PRESERVE_PROMPT_IDS.has(identifier)) return false;
+
+    // For unknown identifiers: check if it's a user-created prompt (UUID format)
+    // by looking up the prompt definition. User prompts have system_prompt === false.
+    const context = SillyTavern.getContext();
+    const prompts = context.chatCompletionSettings?.prompts;
+    if (Array.isArray(prompts)) {
+        const promptDef = prompts.find(p => p && p.identifier === identifier);
+        if (promptDef) {
+            // User-created prompts have system_prompt === false and marker === false/undefined
+            // These are custom instructions added to the preset — suppress them.
+            if (promptDef.system_prompt === false && !promptDef.marker) {
+                return true;
+            }
+            // System prompt with marker = structural element — preserve
+            if (promptDef.marker) return false;
+        }
+    }
+
+    // Unknown identifier not in definitions — leave it alone (safety)
+    return false;
+}
+
+/**
+ * Temporarily disable preset prompts in prompt_order.
+ * Called BEFORE the Chat Completion prompt assembly (prepareOpenAIMessages).
+ *
+ * This works because prepareOpenAIMessages → getPromptCollection() reads
+ * prompt_order[].enabled to decide which prompts to include. By flipping
+ * enabled=false on preset prompts, they get excluded from the final chat array.
+ *
+ * The 'main' prompt is special-cased by ST's PromptManager: when disabled,
+ * it's still included but with empty content (as a positional anchor for
+ * relative inserts). This is fine — empty content messages are filtered out
+ * by getChat() and squashSystemMessages().
+ */
+export function suppressPresetPrompts() {
+    if (!isConversationEnabled()) return;
+
+    const order = getGlobalPromptOrder();
+    if (order.length === 0) return;
+
+    // Don't double-suppress if already active
+    if (savedPromptStates !== null) return;
+
+    savedPromptStates = new Map();
+
+    for (const entry of order) {
+        if (entry.enabled && shouldSuppressPrompt(entry.identifier)) {
+            savedPromptStates.set(entry.identifier, true);
+            entry.enabled = false;
+        }
+    }
+
+    if (savedPromptStates.size > 0) {
+        const suppressed = [...savedPromptStates.keys()].join(', ');
+        console.log(`[Conversation] Temporarily disabled preset prompts: ${suppressed}`);
+    } else {
+        // Nothing was suppressed (all already disabled or not present)
+        savedPromptStates = null;
+    }
+}
+
+/**
+ * Restore preset prompts to their original enabled state.
+ * Called AFTER prompt assembly completes (or on generation failure/stop).
+ *
+ * IMPORTANT: This must always be called to avoid permanently disabling
+ * preset prompts. Multiple restore points are registered for safety:
+ * - CHAT_COMPLETION_PROMPT_READY (normal completion)
+ * - GENERATION_ENDED (generation finished)
+ * - GENERATION_STOPPED (user clicked stop)
+ */
+export function restorePresetPrompts() {
+    if (savedPromptStates === null) return;
+
+    const order = getGlobalPromptOrder();
+
+    for (const entry of order) {
+        if (savedPromptStates.has(entry.identifier)) {
+            entry.enabled = savedPromptStates.get(entry.identifier);
+        }
+    }
+
+    const restored = [...savedPromptStates.keys()].join(', ');
+    savedPromptStates = null;
+    console.log(`[Conversation] Restored preset prompts: ${restored}`);
+}
+
+/** Saved original values for text completion API path */
 let savedMainPrompt = null;
 let savedJailbreak = null;
 
 /**
  * Hook into GENERATE_BEFORE_COMBINE_PROMPTS to modify prompt composition.
- * Called by events.js before each generation.
- * @param {object} data - The prompt data object (contains main, jailbreak, mesSendString, etc.)
+ * This handles text completion APIs (non-OpenAI) where the prompt is combined
+ * into a single string. For Chat Completion APIs, this hook has no effect
+ * because getCombinedPrompt() returns '' early.
+ *
+ * @param {object} data - The prompt data object (contains main, jailbreak, etc.)
  */
 export function onBeforeCombinePrompts(data) {
     if (!isConversationEnabled()) return;
 
-    const settings = getSettings();
-
-    // 1. Suppress the main system prompt from the preset (replace with empty or our own)
+    // 1. Suppress the main system prompt from the preset
     if (data.main !== undefined) {
-        // Save for potential restore
         savedMainPrompt = data.main;
-
-        // If custom prompt is enabled, it's already injected via setExtensionPrompt.
-        // We just need to blank out the RP system prompt so it doesn't interfere.
         data.main = '';
     }
 
-    // 2. Suppress jailbreak prompt (the "NSFW prompt" / "assistant prefill" from presets)
+    // 2. Suppress jailbreak prompt
     if (data.jailbreak !== undefined) {
         savedJailbreak = data.jailbreak;
         data.jailbreak = '';
@@ -60,12 +223,11 @@ export function onAfterGenerateData(generateData, dryRun) {
     if (!isConversationEnabled()) return;
     if (dryRun) return;
 
-    // 3. Disable reasoning/thinking in chat mode
+    // Disable reasoning/thinking in chat mode
     if (generateData.include_reasoning !== undefined) {
         generateData.include_reasoning = false;
     }
 
-    // Also set reasoning_effort to 'none' / minimum if present
     if (generateData.reasoning_effort !== undefined) {
         generateData.reasoning_effort = 'none';
     }
@@ -147,42 +309,16 @@ export function removeContextBlock() {
 }
 
 /**
- * Hook into CHAT_COMPLETION_PROMPT_READY to remove the preset's main system prompt
- * and jailbreak from the final chat completion messages array.
- *
- * This is needed because GENERATE_BEFORE_COMBINE_PROMPTS does NOT fire for OpenAI/Chat
- * Completion APIs (getCombinedPrompt returns '' early for main_api === 'openai').
- *
- * Strategy: The first system message in the array is the preset's main system prompt.
- * We blank its content so it's effectively removed. The jailbreak is typically the last
- * system message before chat history. We identify it by being a system message that
- * appears after all character card content and before user/assistant messages.
+ * Hook into CHAT_COMPLETION_PROMPT_READY.
+ * Now serves only as a restoration point for prompt_order states.
+ * The actual suppression happens earlier via suppressPresetPrompts().
  *
  * @param {object} eventData - { chat: Array<{role, content, ...}>, dryRun: boolean }
  */
 export function onChatCompletionPromptReady(eventData) {
     if (!isConversationEnabled()) return;
-    // Note: we intentionally do NOT skip dryRun here.
-    // dryRun is used by Prompt Inspector / prompt manager to preview prompts.
-    // We want the modification visible there too for debugging purposes,
-    // and it also ensures token counts are accurate.
 
-    const chat = eventData.chat;
-    if (!Array.isArray(chat) || chat.length === 0) return;
-
-    // The first message is always the preset's main system prompt (for chat completion APIs).
-    // It's the only system message that comes from the prompt manager's 'main' entry.
-    // Blank it to suppress the RP system prompt.
-    if (chat[0].role === 'system' && chat[0].content) {
-        console.log(`[Conversation] Removing preset main system prompt from chat completion (dryRun=${eventData.dryRun}, length: ${chat[0].content.length}, first 80 chars: "${chat[0].content.substring(0, 80)}...")`);
-        chat[0].content = '';
-    }
-
-    // Also look for jailbreak / post-history instructions.
-    // In ST's prompt manager, jailbreak is typically placed after chat history as a system message.
-    // We search backwards from the end for system messages that appear after the last
-    // user/assistant exchange and blank them (except our own context block).
-    // However, this is risky — we might accidentally blank WI or author's note prompts.
-    // For now, we only blank the first system message (main prompt) and leave jailbreak handling
-    // to the existing onBeforeCombinePrompts hook for text completion APIs.
+    // Restore preset prompts after the chat array has been built.
+    // This is the primary restoration point — fires for both dry runs and real generations.
+    restorePresetPrompts();
 }

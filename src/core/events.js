@@ -13,7 +13,14 @@ import { cancelStagger } from '../features/stagger.js';
 import { initCustomTime, stopRealtimeUpdates } from '../features/custom-time.js';
 import { refreshStatus, startStatusPolling, stopStatusPolling } from '../features/status.js';
 import { startAutonomousPolling, stopAutonomousPolling } from '../features/autonomous.js';
-import { onBeforeCombinePrompts, onAfterGenerateData, injectContextBlock, onChatCompletionPromptReady } from '../features/context-injection.js';
+import {
+    onBeforeCombinePrompts,
+    onAfterGenerateData,
+    injectContextBlock,
+    onChatCompletionPromptReady,
+    suppressPresetPrompts,
+    restorePresetPrompts,
+} from '../features/context-injection.js';
 
 let eventsBound = false;
 
@@ -41,15 +48,30 @@ export function bindEvents() {
     eventSource.on(event_types.GENERATION_AFTER_COMMANDS, onBeforeGeneration);
 
     // Prompt composition hooks (suppress RP system prompt from presets)
+    // For text completion APIs:
     eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePromptsHandler);
     eventSource.on(event_types.GENERATE_AFTER_DATA, onAfterGenerateDataHandler);
 
-    // Chat completion prompt hook (for OpenAI/Chat Completion APIs)
-    // GENERATE_BEFORE_COMBINE_PROMPTS does NOT fire for OpenAI — getCombinedPrompt()
-    // returns '' early. We use CHAT_COMPLETION_PROMPT_READY to remove the preset's
-    // main system prompt from the final messages array.
+    // For Chat Completion APIs (OpenAI):
+    // We suppress preset prompts by temporarily disabling them in prompt_order
+    // BEFORE prepareOpenAIMessages assembles the chat array.
+    // GENERATE_AFTER_COMBINE_PROMPTS fires right before prepareOpenAIMessages.
+    if (event_types.GENERATE_AFTER_COMBINE_PROMPTS) {
+        eventSource.on(event_types.GENERATE_AFTER_COMBINE_PROMPTS, onAfterCombinePromptsHandler);
+    }
+
+    // CHAT_COMPLETION_PROMPT_READY fires after chat array is built — restore point.
     if (event_types.CHAT_COMPLETION_PROMPT_READY) {
         eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReadyHandler);
+    }
+
+    // Safety net: restore preset prompts if generation ends or is stopped
+    // without CHAT_COMPLETION_PROMPT_READY firing (e.g., error, non-OpenAI API).
+    if (event_types.GENERATION_ENDED) {
+        eventSource.on(event_types.GENERATION_ENDED, onGenerationEndedHandler);
+    }
+    if (event_types.GENERATION_STOPPED) {
+        eventSource.on(event_types.GENERATION_STOPPED, onGenerationEndedHandler);
     }
 
     eventsBound = true;
@@ -73,8 +95,17 @@ export function unbindEvents() {
     eventSource.removeListener(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePromptsHandler);
     eventSource.removeListener(event_types.GENERATE_AFTER_DATA, onAfterGenerateDataHandler);
 
+    if (event_types.GENERATE_AFTER_COMBINE_PROMPTS) {
+        eventSource.removeListener(event_types.GENERATE_AFTER_COMBINE_PROMPTS, onAfterCombinePromptsHandler);
+    }
     if (event_types.CHAT_COMPLETION_PROMPT_READY) {
         eventSource.removeListener(event_types.CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReadyHandler);
+    }
+    if (event_types.GENERATION_ENDED) {
+        eventSource.removeListener(event_types.GENERATION_ENDED, onGenerationEndedHandler);
+    }
+    if (event_types.GENERATION_STOPPED) {
+        eventSource.removeListener(event_types.GENERATION_STOPPED, onGenerationEndedHandler);
     }
 
     eventsBound = false;
@@ -181,8 +212,15 @@ function onBeforeGeneration() {
 }
 
 function onBeforeCombinePromptsHandler(data) {
-    // Suppress RP system prompt from presets in conversation mode
+    // Suppress RP system prompt from presets in conversation mode (text completion APIs)
     onBeforeCombinePrompts(data);
+}
+
+function onAfterCombinePromptsHandler() {
+    // Suppress preset prompts for Chat Completion APIs.
+    // This fires right before prepareOpenAIMessages(), so disabling prompts here
+    // ensures they're excluded from the chat array that getChat() produces.
+    suppressPresetPrompts();
 }
 
 function onAfterGenerateDataHandler(generateData, dryRun) {
@@ -193,4 +231,10 @@ function onAfterGenerateDataHandler(generateData, dryRun) {
 function onChatCompletionPromptReadyHandler(eventData) {
     if (!isConversationEnabled()) return;
     onChatCompletionPromptReady(eventData);
+}
+
+function onGenerationEndedHandler() {
+    // Safety net: restore preset prompts if they weren't restored by
+    // CHAT_COMPLETION_PROMPT_READY (e.g., generation error, non-OpenAI API path).
+    restorePresetPrompts();
 }
