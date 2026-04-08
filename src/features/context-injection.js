@@ -145,3 +145,41 @@ export function removeContextBlock() {
     const context = SillyTavern.getContext();
     context.setExtensionPrompt(CONTEXT_PROMPT_KEY, '', 0, 0, false, 0);
 }
+
+/**
+ * Hook into CHAT_COMPLETION_PROMPT_READY to remove the preset's main system prompt
+ * and jailbreak from the final chat completion messages array.
+ *
+ * This is needed because GENERATE_BEFORE_COMBINE_PROMPTS does NOT fire for OpenAI/Chat
+ * Completion APIs (getCombinedPrompt returns '' early for main_api === 'openai').
+ *
+ * Strategy: The first system message in the array is the preset's main system prompt.
+ * We blank its content so it's effectively removed. The jailbreak is typically the last
+ * system message before chat history. We identify it by being a system message that
+ * appears after all character card content and before user/assistant messages.
+ *
+ * @param {object} eventData - { chat: Array<{role, content, ...}>, dryRun: boolean }
+ */
+export function onChatCompletionPromptReady(eventData) {
+    if (!isConversationEnabled()) return;
+    if (eventData.dryRun) return;
+
+    const chat = eventData.chat;
+    if (!Array.isArray(chat) || chat.length === 0) return;
+
+    // The first message is always the preset's main system prompt (for chat completion APIs).
+    // It's the only system message that comes from the prompt manager's 'main' entry.
+    // Blank it to suppress the RP system prompt.
+    if (chat[0].role === 'system' && chat[0].content) {
+        console.log('[Conversation] Removing preset main system prompt from chat completion (first system message, length:', chat[0].content.length, ')');
+        chat[0].content = '';
+    }
+
+    // Also look for jailbreak / post-history instructions.
+    // In ST's prompt manager, jailbreak is typically placed after chat history as a system message.
+    // We search backwards from the end for system messages that appear after the last
+    // user/assistant exchange and blank them (except our own context block).
+    // However, this is risky — we might accidentally blank WI or author's note prompts.
+    // For now, we only blank the first system message (main prompt) and leave jailbreak handling
+    // to the existing onBeforeCombinePrompts hook for text completion APIs.
+}

@@ -13,7 +13,7 @@ import { cancelStagger } from '../features/stagger.js';
 import { initCustomTime, stopRealtimeUpdates } from '../features/custom-time.js';
 import { refreshStatus, startStatusPolling, stopStatusPolling } from '../features/status.js';
 import { startAutonomousPolling, stopAutonomousPolling } from '../features/autonomous.js';
-import { onBeforeCombinePrompts, onAfterGenerateData, injectContextBlock } from '../features/context-injection.js';
+import { onBeforeCombinePrompts, onAfterGenerateData, injectContextBlock, onChatCompletionPromptReady } from '../features/context-injection.js';
 
 let eventsBound = false;
 
@@ -44,6 +44,14 @@ export function bindEvents() {
     eventSource.on(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePromptsHandler);
     eventSource.on(event_types.GENERATE_AFTER_DATA, onAfterGenerateDataHandler);
 
+    // Chat completion prompt hook (for OpenAI/Chat Completion APIs)
+    // GENERATE_BEFORE_COMBINE_PROMPTS does NOT fire for OpenAI — getCombinedPrompt()
+    // returns '' early. We use CHAT_COMPLETION_PROMPT_READY to remove the preset's
+    // main system prompt from the final messages array.
+    if (event_types.CHAT_COMPLETION_PROMPT_READY) {
+        eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReadyHandler);
+    }
+
     eventsBound = true;
     console.log('[Conversation] Events bound');
 }
@@ -64,6 +72,10 @@ export function unbindEvents() {
     eventSource.removeListener(event_types.GENERATION_AFTER_COMMANDS, onBeforeGeneration);
     eventSource.removeListener(event_types.GENERATE_BEFORE_COMBINE_PROMPTS, onBeforeCombinePromptsHandler);
     eventSource.removeListener(event_types.GENERATE_AFTER_DATA, onAfterGenerateDataHandler);
+
+    if (event_types.CHAT_COMPLETION_PROMPT_READY) {
+        eventSource.removeListener(event_types.CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReadyHandler);
+    }
 
     eventsBound = false;
     console.log('[Conversation] Events unbound');
@@ -176,4 +188,9 @@ function onBeforeCombinePromptsHandler(data) {
 function onAfterGenerateDataHandler(generateData, dryRun) {
     // Disable reasoning in chat mode
     onAfterGenerateData(generateData, dryRun);
+}
+
+function onChatCompletionPromptReadyHandler(eventData) {
+    if (!isConversationEnabled()) return;
+    onChatCompletionPromptReady(eventData);
 }
