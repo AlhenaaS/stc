@@ -162,7 +162,10 @@ export function removeContextBlock() {
  */
 export function onChatCompletionPromptReady(eventData) {
     if (!isConversationEnabled()) return;
-    if (eventData.dryRun) return;
+    // Note: we intentionally do NOT skip dryRun here.
+    // dryRun is used by Prompt Inspector / prompt manager to preview prompts.
+    // We want the modification visible there too for debugging purposes,
+    // and it also ensures token counts are accurate.
 
     const chat = eventData.chat;
     if (!Array.isArray(chat) || chat.length === 0) return;
@@ -171,7 +174,7 @@ export function onChatCompletionPromptReady(eventData) {
     // It's the only system message that comes from the prompt manager's 'main' entry.
     // Blank it to suppress the RP system prompt.
     if (chat[0].role === 'system' && chat[0].content) {
-        console.log('[Conversation] Removing preset main system prompt from chat completion (first system message, length:', chat[0].content.length, ')');
+        console.log(`[Conversation] Removing preset main system prompt from chat completion (dryRun=${eventData.dryRun}, length: ${chat[0].content.length}, first 80 chars: "${chat[0].content.substring(0, 80)}...")`);
         chat[0].content = '';
     }
 
